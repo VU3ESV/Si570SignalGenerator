@@ -1,0 +1,264 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="1090" viewBox="0 0 1260 1090">
+<style>
+  .w{stroke:#111;stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+  .thin{stroke-width:1.5}
+  .p{fill:#fff;stroke:#111;stroke-width:2}
+  .dot{fill:#111}
+  text{font-family:Helvetica,Arial,sans-serif}
+  .t{font-size:15px;fill:#111}
+  .s{font-size:13px;fill:#555}
+  .pin{font-size:12px;fill:#777}
+  .net{font-size:14px;fill:#1a56a8;font-weight:bold}
+  .h1{font-size:23px;font-weight:bold;fill:#111}
+  .h2{font-size:18px;font-weight:bold;fill:#111}
+  .box{fill:#f6f7f9;stroke:#c9ccd2;stroke-width:1}
+  .nc{stroke:#b3261e;stroke-width:2.5;fill:none}
+</style>
+<rect width="1260" height="1090" fill="#fff"/>
+<text class="h1" x="30" y="40" text-anchor="start">Si570 generator: external 10 MHz reference and Si570 sample inputs</text>
+<text class="s" x="30" y="64" text-anchor="start">All logic runs from the ESP32's 3.3 V. Values are for a CMOS Si570 (e.g. CAC000141). Red × = leave unconnected.</text>
+<text class="h2" x="30" y="110" text-anchor="start">1 · 10 MHz reference → GPIO34</text>
+<circle class="w" cx="80" cy="260" r="15"/>
+<circle class="dot" cx="80" cy="260" r="3.5"/>
+<polyline class="w" points="80,275 80,310"/>
+<polyline class="w" points="68,310 92,310"/>
+<polyline class="w" points="72,315 88,315"/>
+<polyline class="w" points="76,320 84,320"/>
+<text class="t" x="80" y="200" text-anchor="middle">J1</text>
+<text class="s" x="80" y="217" text-anchor="middle">10 MHz REF IN</text>
+<text class="s" x="80" y="233" text-anchor="middle">from GPSDO</text>
+<polyline class="w" points="80,260 190,260"/>
+<circle class="dot" cx="190" cy="260" r="4"/>
+<polyline class="w" points="190,260 190,280"/>
+<rect class="p" x="183" y="280" width="14" height="40"/>
+<polyline class="w" points="190,320 190,340"/>
+<text class="t" x="204" y="298" text-anchor="start">R1</text>
+<text class="t" x="204" y="315" text-anchor="start">51 Ω</text>
+<polyline class="w" points="178,340 202,340"/>
+<polyline class="w" points="182,345 198,345"/>
+<polyline class="w" points="186,350 194,350"/>
+<polyline class="w" points="230,260 256,260"/>
+<polyline class="w" points="256,246 256,274"/>
+<polyline class="w" points="264,246 264,274"/>
+<polyline class="w" points="264,260 290,260"/>
+<text class="t" x="260" y="238" text-anchor="middle">C1  100 nF</text>
+<polyline class="w" points="190,260 230,260"/>
+<polyline class="w" points="290,260 340,260"/>
+<circle class="dot" cx="340" cy="260" r="4"/>
+<polyline class="w" points="340,160 340,190"/>
+<rect class="p" x="333" y="190" width="14" height="40"/>
+<polyline class="w" points="340,230 340,260"/>
+<text class="t" x="354" y="208" text-anchor="start">R2</text>
+<text class="t" x="354" y="225" text-anchor="start">12 kΩ</text>
+<polyline class="w" points="328,160 352,160"/>
+<text class="net" x="340" y="153" text-anchor="middle">+3V3</text>
+<polyline class="w" points="340,260 340,285"/>
+<rect class="p" x="333" y="285" width="14" height="40"/>
+<polyline class="w" points="340,325 340,350"/>
+<text class="t" x="354" y="303" text-anchor="start">R3</text>
+<text class="t" x="354" y="320" text-anchor="start">10 kΩ</text>
+<polyline class="w" points="328,350 352,350"/>
+<polyline class="w" points="332,355 348,355"/>
+<polyline class="w" points="336,360 344,360"/>
+<text class="s" x="355" y="364" text-anchor="start">bias = 1.50 V</text>
+<polyline class="w" points="340,260 450,260"/>
+<polygon class="p" points="450,235 450,285 500,260"/>
+<circle class="p" cx="505" cy="260" r="5"/>
+<path class="w thin" d="M458 265 h8 v-10 h8 M462 255 v10 h8 v-10"/>
+<text class="pin" x="444" y="254" text-anchor="end">2</text>
+<text class="pin" x="516" y="254" text-anchor="start">4</text>
+<text class="pin" x="474" y="242" text-anchor="start">5</text>
+<text class="pin" x="474" y="290" text-anchor="start">3</text>
+<text class="t" x="524" y="294" text-anchor="start">U1</text>
+<text class="s" x="524" y="311" text-anchor="start">74LVC1G14</text>
+<polyline class="w" points="470,245 470,165"/>
+<polyline class="w" points="458,165 482,165"/>
+<text class="net" x="470" y="158" text-anchor="middle">+3V3</text>
+<circle class="dot" cx="470" cy="195" r="4"/>
+<polyline class="w" points="470,195 490,195"/>
+<polyline class="w" points="490,195 506,195"/>
+<polyline class="w" points="506,181 506,209"/>
+<polyline class="w" points="514,181 514,209"/>
+<polyline class="w" points="514,195 530,195"/>
+<polyline class="w" points="530,195 550,195"/>
+<polyline class="w" points="550,195 550,203"/>
+<polyline class="w" points="538,203 562,203"/>
+<polyline class="w" points="542,208 558,208"/>
+<polyline class="w" points="546,213 554,213"/>
+<text class="t" x="568" y="200" text-anchor="start">C3  100 nF</text>
+<polyline class="w" points="470,275 470,310"/>
+<polyline class="w" points="458,310 482,310"/>
+<polyline class="w" points="462,315 478,315"/>
+<polyline class="w" points="466,320 474,320"/>
+<polyline class="w" points="510,260 600,260"/>
+<polyline class="w" points="600,260 620,260"/>
+<rect class="p" x="620" y="253" width="40" height="14"/>
+<polyline class="w" points="660,260 680,260"/>
+<text class="t" x="640" y="246" text-anchor="middle">R4  33 Ω</text>
+<polyline class="w" points="680,260 990,260"/>
+<text class="h2" x="30" y="445" text-anchor="start">2 · Si570 output → RF OUT, and a sample → GPIO35</text>
+<rect class="p" x="180" y="475" width="140" height="285"/>
+<text class="h2" x="250" y="503" text-anchor="middle">Si570</text>
+<text class="s" x="250" y="521" text-anchor="middle">U3 (CMOS)</text>
+<polyline class="w" points="160,560 180,560"/>
+<text class="t" x="188" y="565" text-anchor="start">6 VDD</text>
+<text class="net" x="154" y="565" text-anchor="end">+3V3 *</text>
+<polyline class="w" points="160,600 180,600"/>
+<text class="t" x="188" y="605" text-anchor="start">7 SDA</text>
+<text class="net" x="154" y="605" text-anchor="end">ESP32 D21</text>
+<polyline class="w" points="160,640 180,640"/>
+<text class="t" x="188" y="645" text-anchor="start">8 SCL</text>
+<text class="net" x="154" y="645" text-anchor="end">ESP32 D22</text>
+<polyline class="w" points="160,680 180,680"/>
+<text class="t" x="188" y="685" text-anchor="start">2 OE</text>
+<text class="net" x="154" y="685" text-anchor="end">ESP32 D4 (optional)</text>
+<polyline class="w" points="140,720 180,720"/>
+<text class="t" x="188" y="725" text-anchor="start">3 GND</text>
+<polyline class="w" points="140,720 140,726"/>
+<polyline class="w" points="128,726 152,726"/>
+<polyline class="w" points="132,731 148,731"/>
+<polyline class="w" points="136,736 144,736"/>
+<polyline class="w" points="320,620 338,620"/>
+<path class="nc" d="M333 615 l10 10 M343 615 l-10 10"/>
+<text class="t" x="312" y="625" text-anchor="end">CLK– 5</text>
+<polyline class="w" points="320,680 338,680"/>
+<path class="nc" d="M333 675 l10 10 M343 675 l-10 10"/>
+<text class="t" x="312" y="685" text-anchor="end">NC 1</text>
+<polyline class="w" points="320,560 370,560"/>
+<text class="t" x="312" y="565" text-anchor="end">CLK+ 4</text>
+<circle class="dot" cx="370" cy="560" r="4"/>
+<polyline class="w" points="370,560 400,560"/>
+<polyline class="w" points="400,560 420,560"/>
+<rect class="p" x="420" y="553" width="40" height="14"/>
+<polyline class="w" points="460,560 480,560"/>
+<text class="t" x="440" y="546" text-anchor="middle">R7  33 Ω</text>
+<polyline class="w" points="480,560 520,560"/>
+<polyline class="w" points="520,560 546,560"/>
+<polyline class="w" points="546,546 546,574"/>
+<polyline class="w" points="554,546 554,574"/>
+<polyline class="w" points="554,560 580,560"/>
+<text class="t" x="550" y="538" text-anchor="middle">C2  100 nF</text>
+<text class="s" x="550" y="521" text-anchor="middle">(your existing cap)</text>
+<polyline class="w" points="580,560 680,560"/>
+<circle class="w" cx="680" cy="560" r="15"/>
+<circle class="dot" cx="680" cy="560" r="3.5"/>
+<polyline class="w" points="680,575 680,605"/>
+<polyline class="w" points="668,605 692,605"/>
+<polyline class="w" points="672,610 688,610"/>
+<polyline class="w" points="676,615 684,615"/>
+<text class="t" x="680" y="516" text-anchor="middle">J2</text>
+<text class="s" x="704" y="533" text-anchor="start">RF OUT</text>
+<text class="s" x="704" y="592" text-anchor="start">to counter / load</text>
+<polyline class="w" points="370,560 370,580"/>
+<rect class="p" x="363" y="580" width="14" height="40"/>
+<polyline class="w" points="370,620 370,640"/>
+<text class="t" x="384" y="598" text-anchor="start">R5</text>
+<text class="t" x="384" y="615" text-anchor="start">100 Ω</text>
+<polyline class="w" points="370,640 370,700 450,700"/>
+<circle class="dot" cx="410" cy="700" r="4"/>
+<polyline class="w" points="410,700 410,720"/>
+<rect class="p" x="403" y="720" width="14" height="40"/>
+<polyline class="w" points="410,760 410,780"/>
+<text class="t" x="396" y="738" text-anchor="end">R8</text>
+<text class="t" x="396" y="755" text-anchor="end">100 kΩ</text>
+<polyline class="w" points="398,780 422,780"/>
+<polyline class="w" points="402,785 418,785"/>
+<polyline class="w" points="406,790 414,790"/>
+<polygon class="p" points="450,675 450,725 500,700"/>
+<circle class="p" cx="505" cy="700" r="5"/>
+<path class="w thin" d="M458 705 h8 v-10 h8 M462 695 v10 h8 v-10"/>
+<text class="pin" x="444" y="694" text-anchor="end">2</text>
+<text class="pin" x="516" y="694" text-anchor="start">4</text>
+<text class="pin" x="474" y="682" text-anchor="start">5</text>
+<text class="pin" x="474" y="730" text-anchor="start">3</text>
+<text class="t" x="524" y="734" text-anchor="start">U2</text>
+<text class="s" x="524" y="751" text-anchor="start">74LVC1G14</text>
+<polyline class="w" points="470,685 470,620"/>
+<polyline class="w" points="458,620 482,620"/>
+<text class="net" x="470" y="613" text-anchor="middle">+3V3</text>
+<circle class="dot" cx="470" cy="650" r="4"/>
+<polyline class="w" points="470,650 490,650"/>
+<polyline class="w" points="490,650 506,650"/>
+<polyline class="w" points="506,636 506,664"/>
+<polyline class="w" points="514,636 514,664"/>
+<polyline class="w" points="514,650 530,650"/>
+<polyline class="w" points="530,650 550,650"/>
+<polyline class="w" points="550,650 550,658"/>
+<polyline class="w" points="538,658 562,658"/>
+<polyline class="w" points="542,663 558,663"/>
+<polyline class="w" points="546,668 554,668"/>
+<text class="t" x="568" y="655" text-anchor="start">C4  100 nF</text>
+<polyline class="w" points="470,715 470,760"/>
+<polyline class="w" points="458,760 482,760"/>
+<polyline class="w" points="462,765 478,765"/>
+<polyline class="w" points="466,770 474,770"/>
+<polyline class="w" points="510,700 600,700"/>
+<polyline class="w" points="600,700 620,700"/>
+<rect class="p" x="620" y="693" width="40" height="14"/>
+<polyline class="w" points="660,700 680,700"/>
+<text class="t" x="640" y="686" text-anchor="middle">R6  33 Ω</text>
+<polyline class="w" points="680,700 990,700"/>
+<text class="s" x="30" y="800" text-anchor="start">* VDD: the ESP32 3V3, or the Si570's own 3.3 V</text>
+<text class="s" x="30" y="816" text-anchor="start">  regulator with the grounds joined. Decouple</text>
+<text class="s" x="30" y="832" text-anchor="start">  VDD with 100 nF + 10 µF at the chip.</text>
+<rect class="p" x="1010" y="100" width="220" height="730"/>
+<text class="h2" x="1120" y="130" text-anchor="middle">ESP32 DevKit</text>
+<text class="s" x="1120" y="148" text-anchor="middle">30-pin</text>
+<polyline class="w" points="990,170 1010,170"/>
+<text class="t" x="1020" y="175" text-anchor="start">3V3</text>
+<text class="net" x="982" y="175" text-anchor="end">+3V3</text>
+<polyline class="w" points="990,260 1010,260"/>
+<text class="t" x="1020" y="265" text-anchor="start">D34</text>
+<polyline class="w" points="990,340 1010,340"/>
+<text class="t" x="1020" y="345" text-anchor="start">D27</text>
+<path class="nc" d="M985 335 l10 10 M995 335 l-10 10"/>
+<polyline class="w" points="990,420 1010,420"/>
+<text class="t" x="1020" y="425" text-anchor="start">D21  SDA</text>
+<text class="net" x="982" y="425" text-anchor="end">to Si570 7</text>
+<polyline class="w" points="990,460 1010,460"/>
+<text class="t" x="1020" y="465" text-anchor="start">D22  SCL</text>
+<text class="net" x="982" y="465" text-anchor="end">to Si570 8</text>
+<polyline class="w" points="990,500 1010,500"/>
+<text class="t" x="1020" y="505" text-anchor="start">D4  OE</text>
+<text class="net" x="982" y="505" text-anchor="end">to Si570 2</text>
+<polyline class="w" points="990,700 1010,700"/>
+<text class="t" x="1020" y="705" text-anchor="start">D35</text>
+<polyline class="w" points="990,790 1010,790"/>
+<text class="t" x="1020" y="795" text-anchor="start">GND</text>
+<polyline class="w" points="970,790 990,790"/>
+<polyline class="w" points="970,790 970,796"/>
+<polyline class="w" points="958,796 982,796"/>
+<polyline class="w" points="962,801 978,801"/>
+<polyline class="w" points="966,806 974,806"/>
+<text class="s" x="1020" y="282" text-anchor="start">GPIO34, input only</text>
+<text class="s" x="1020" y="298" text-anchor="start">reference</text>
+<text class="s" x="1020" y="362" text-anchor="start">internal counter</text>
+<text class="s" x="1020" y="378" text-anchor="start">gate: leave open</text>
+<text class="s" x="1020" y="722" text-anchor="start">GPIO35, input only</text>
+<text class="s" x="1020" y="738" text-anchor="start">Si570 sample</text>
+<rect class="box" x="30" y="860" width="760" height="205" rx="6"/>
+<text class="h2" x="46" y="887" text-anchor="start">Notes</text>
+<text class="t" x="46" y="915" text-anchor="start">Reference level at J1: a sine of +6 to +13 dBm, or a 3.3 V CMOS square wave. R1 terminates</text>
+<text class="t" x="46" y="936" text-anchor="start">the coax; R2/R3 bias U1 at the centre of its worst-case switching window (about 0.95–2.04 V).</text>
+<text class="t" x="46" y="957" text-anchor="start">Fit R5 and U2 within about 2 cm of the Si570 CLK+ pin. The tap adds about 4 pF behind 100 Ω.</text>
+<text class="t" x="46" y="978" text-anchor="start">R8 holds U2's input low when OE switches the Si570 output off.</text>
+<text class="t" x="46" y="999" text-anchor="start">GPIO34/35 are input-only and must never see more than 3.3 V. Leave D27 unconnected.</text>
+<text class="t" x="46" y="1020" text-anchor="start">The ESP32 counts the sample up to 40 MHz; above that the firmware holds the last correction.</text>
+<text class="t" x="46" y="1041" text-anchor="start">R7 + the chip's ~20 Ω output ≈ 50 Ω, so J2 can drive a 1 MΩ counter over coax cleanly.</text>
+<rect class="box" x="810" y="860" width="420" height="205" rx="6"/>
+<text class="h2" x="826" y="887" text-anchor="start">Parts</text>
+<text class="t" x="826" y="915" text-anchor="start">U1, U2</text>
+<text class="t" x="916" y="915" text-anchor="start">74LVC1G14, SOT-23-5</text>
+<text class="t" x="826" y="936" text-anchor="start"></text>
+<text class="t" x="916" y="936" text-anchor="start">pin 2 in, 4 out, 5 VCC, 3 GND</text>
+<text class="t" x="826" y="957" text-anchor="start">R1</text>
+<text class="t" x="916" y="957" text-anchor="start">51 Ω</text>
+<text class="t" x="826" y="978" text-anchor="start">R2 / R3</text>
+<text class="t" x="916" y="978" text-anchor="start">12 kΩ / 10 kΩ</text>
+<text class="t" x="826" y="999" text-anchor="start">R4, R6, R7</text>
+<text class="t" x="916" y="999" text-anchor="start">33 Ω</text>
+<text class="t" x="826" y="1020" text-anchor="start">R5 / R8</text>
+<text class="t" x="916" y="1020" text-anchor="start">100 Ω / 100 kΩ</text>
+<text class="t" x="826" y="1041" text-anchor="start">C1, C3, C4</text>
+<text class="t" x="916" y="1041" text-anchor="start">100 nF ceramic (C2 already fitted)</text>
+</svg>

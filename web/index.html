@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Si570 Signal Generator</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#1d232b;--muted:#5d6876;--line:#d9dee5;--accent:#0a66c2;--accent-text:#fff;--ok:#1f7a3a;--warn:#9a5800;--bad:#b42318;--lcd-bg:#0f1d13;--lcd-fg:#8cff9e;--lcd-dim:#2d4b34;--lcd-hi:#f0fff2}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--card:#161a21;--text:#e5e8ec;--muted:#98a3b1;--line:#2a313b;--accent:#4c9dff;--accent-text:#0b0e13;--ok:#4cc36a;--warn:#e0a03a;--bad:#ff6b5e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px}
+a{color:var(--accent)}
+h1{font-size:1.25rem;margin:0}
+h2{font-size:1rem;margin:0 0 .6rem}
+.meta{color:var(--muted);font-size:.85rem;margin:.2rem 0 1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px}
+.banner{border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:.55rem .8rem;margin-bottom:12px;font-size:.9rem}
+.banner.info{border-color:var(--line);color:var(--text)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.lcd{background:var(--lcd-bg);border-radius:8px;padding:14px 12px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--lcd-fg);display:flex;align-items:baseline;justify-content:flex-end;gap:.45rem;user-select:none;-webkit-user-select:none;touch-action:manipulation;outline:none}
+.lcd:focus-visible{box-shadow:0 0 0 3px var(--accent)}
+.digits{font-size:clamp(1.8rem,8.5vw,3rem);white-space:nowrap;font-variant-numeric:tabular-nums}
+.d{display:inline-block;cursor:ns-resize;border-bottom:3px solid transparent;line-height:1.1}
+.d:hover{color:var(--lcd-hi)}
+.d.step{border-bottom-color:var(--lcd-fg)}
+.d.lead{color:var(--lcd-dim)}
+.unit{font-size:1rem;opacity:.85}
+.hint{color:var(--muted);font-size:.8rem;margin:.45rem 0 .8rem}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:7rem}
+button,input,select{font:inherit;color:inherit}
+button,.btn{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.5rem .9rem;cursor:pointer;text-decoration:none;color:var(--text)}
+button:hover,.btn:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+button.danger{color:var(--bad);border-color:var(--bad)}
+button:disabled{opacity:.45;cursor:default}
+input,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.5rem .6rem;width:100%}
+.tune{font-size:1.25rem;width:3rem;padding:.3rem 0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-shrink:0}
+.seg button{border:0;border-radius:0;padding:.42rem .9rem}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-text)}
+.ctl{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:.5rem 0;border-top:1px solid var(--line)}
+.ctl:first-of-type{border-top:0;padding-top:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:.8rem}
+.chip{font-size:.78rem;border:1px solid var(--line);border-radius:999px;padding:.12rem .6rem;color:var(--muted)}
+.chip.ok{color:var(--ok);border-color:var(--ok)}
+.chip.warn{color:var(--warn);border-color:var(--warn)}
+.chip.bad{color:var(--bad);border-color:var(--bad)}
+details.card>summary{cursor:pointer;font-weight:600}
+details.card[open]>summary{margin-bottom:.6rem}
+label{display:block;font-size:.85rem;color:var(--muted);margin:.6rem 0 .2rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media (max-width:480px){.grid{grid-template-columns:1fr}}
+.note{font-size:.82rem;color:var(--muted);margin:.3rem 0 .6rem}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:.2rem 1rem;margin:.7rem 0 0;font-size:.88rem}
+dl.kv dt{color:var(--muted)}
+dl.kv dd{margin:0;font-variant-numeric:tabular-nums}
+.warntext{color:var(--warn)}
+progress{width:100%;margin-top:.6rem}
+#toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:.55rem .9rem;border-radius:8px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px)}
+#toast.show{opacity:1}
+#toast.err{background:var(--bad);color:#fff}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Si570 Signal Generator</h1>
+  <p class="meta" id="meta">Connecting…</p>
+</header>
+
+<div class="banner" id="authWarn" hidden><b>No admin password set.</b> Anyone on this network can change the output, the settings or the firmware. Set one under <a href="#admin">Admin password</a>.</div>
+<div class="banner info" id="msg" role="status" hidden></div>
+
+<section class="card" aria-labelledby="hFreq">
+  <h2 id="hFreq" class="sr-only">Output frequency</h2>
+  <div class="lcd" id="lcd" tabindex="0" role="spinbutton" aria-label="Output frequency">
+    <span class="digits" id="digits">–</span><span class="unit">MHz</span>
+  </div>
+  <p class="hint">Scroll on a digit, or tap its upper or lower half, to tune it. With the display focused: ↑ ↓ tune by the step, ← → change the step.</p>
+  <div class="row">
+    <button type="button" class="tune" id="down" aria-label="Down one step">−</button>
+    <select id="step" class="grow" aria-label="Tuning step"></select>
+    <button type="button" class="tune" id="up" aria-label="Up one step">+</button>
+  </div>
+  <form id="freqForm" class="row" style="margin-top:8px">
+    <input id="freqIn" class="grow" inputmode="decimal" autocomplete="off" placeholder="Frequency, e.g. 14.25" aria-label="Frequency">
+    <select id="unit" style="width:auto" aria-label="Unit"><option value="1000000">MHz</option><option value="1000">kHz</option><option value="1">Hz</option></select>
+    <button class="primary">Set</button>
+  </form>
+  <div class="chips" id="chips"></div>
+</section>
+
+<section class="card">
+  <h2>Output and reference</h2>
+  <div class="ctl" id="rfRow"><span>RF output</span><div class="seg" id="rfSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
+  <div class="ctl" id="refRow"><span>Reference</span><div class="seg" id="refSeg"><button type="button" data-v="int">Internal</button><button type="button" data-v="ext">External</button></div></div>
+  <dl class="kv" id="refKv"></dl>
+  <div class="row" style="margin-top:.9rem">
+    <button type="button" id="calBtn">Calibrate now</button>
+    <button type="button" id="saveBtn" class="primary">Save as power-on default</button>
+  </div>
+</section>
+
+<details class="card" id="hwCard"><summary>Si570 hardware</summary>
+  <p class="note">These must match your Si570 part number. Changing the I²C address, start-up frequency or register bank re-initialises the chip and drops the external-reference calibration.</p>
+  <form id="hwForm">
+    <div class="grid">
+      <div><label for="hwAddr">I²C address (hex)</label><input id="hwAddr" autocomplete="off" placeholder="0x55"></div>
+      <div><label for="hwStart">Start-up frequency (MHz)</label><input id="hwStart" inputmode="decimal" autocomplete="off"></div>
+      <div><label for="hwBank">Register bank</label><select id="hwBank"><option value="7">7–12 (±20/±50 ppm, option A/B)</option><option value="13">13–18 (±7 ppm, option C)</option></select></div>
+      <div><label for="hwOe">OE pin polarity</label><select id="hwOe"><option value="1">Active high</option><option value="0">Active low</option></select></div>
+      <div><label for="hwMin">Lowest frequency (MHz)</label><input id="hwMin" inputmode="decimal" autocomplete="off"></div>
+      <div><label for="hwMax">Highest frequency (MHz)</label><input id="hwMax" inputmode="decimal" autocomplete="off"></div>
+      <div><label for="hwRef">External reference (MHz)</label><input id="hwRef" inputmode="decimal" autocomplete="off"></div>
+    </div>
+    <dl class="kv" id="hwKv"></dl>
+    <button class="primary" style="margin-top:.9rem">Save hardware settings</button>
+  </form>
+</details>
+
+<details class="card" id="netCard"><summary>Network</summary>
+  <form id="netForm">
+    <label for="ssid">Wi-Fi network (SSID)</label><input id="ssid" maxlength="32" autocomplete="off">
+    <label for="pass">Wi-Fi password</label><input id="pass" type="password" maxlength="63" autocomplete="new-password" placeholder="leave blank to keep the current one">
+    <label for="host">Hostname</label><input id="host" maxlength="31" autocomplete="off">
+    <p class="note">Leave the SSID empty to use the set-up hotspot instead. Network changes apply after a reboot.</p>
+    <button class="primary">Save network settings</button>
+  </form>
+</details>
+
+<details class="card" id="admin"><summary>Admin password</summary>
+  <form id="adminForm">
+    <p class="note">Protects this page, every change and firmware updates. User name <code>admin</code>. Lost it? Type <code>auth clear</code> on the USB serial console.</p>
+    <label for="adminPass">New password</label><input id="adminPass" type="password" maxlength="64" autocomplete="new-password">
+    <button class="primary" style="margin-top:.9rem">Set password</button>
+  </form>
+</details>
+
+<details class="card" id="fwCard"><summary>Firmware update</summary>
+  <p class="note">Choose <code>.pio/build/esp32/firmware.bin</code> from a build. The generator reboots once the update is written. PlatformIO can also update over the network: <code>pio run -e esp32-ota -t upload</code>.</p>
+  <form id="fwForm">
+    <input type="file" id="fwFile" accept=".bin,application/octet-stream">
+    <progress id="fwProg" max="100" value="0" hidden></progress>
+    <button class="primary" style="margin-top:.9rem">Upload and install</button>
+  </form>
+</details>
+
+<details class="card"><summary>Backup and maintenance</summary>
+  <p class="note">The backup holds the hardware and network settings, without passwords. Restoring fills in the forms above; review them and save each section.</p>
+  <div class="row">
+    <a class="btn" href="/config?download=1">Download backup</a>
+    <label class="btn" style="margin:0;color:var(--text);font-size:inherit">Restore from file…<input type="file" id="restoreFile" accept=".json,application/json" hidden></label>
+  </div>
+  <div class="row" style="margin-top:.8rem">
+    <button type="button" id="rebootBtn">Reboot</button>
+    <button type="button" id="resetBtn" class="danger">Factory reset</button>
+  </div>
+  <p class="note" style="margin-top:.8rem">JSON: <a href="/status">/status</a> · <a href="/config">/config</a> · <a href="/discover">/discover</a></p>
+</details>
+</main>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const STEPS = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8];
+const STEP_NAMES = ['1 Hz', '10 Hz', '100 Hz', '1 kHz', '10 kHz', '100 kHz', '1 MHz', '10 MHz', '100 MHz'];
+const REF_TEXT = {
+  INT: 'Internal crystal, factory calibration',
+  LOCK: 'Locked to the external reference',
+  TRK: 'Correcting towards the external reference',
+  HOLD: 'Holding the last correction (output above 40 MHz, or RF off)',
+  NREF: 'No external reference signal',
+  NSIG: 'No Si570 sample on the counter input',
+  CAL: 'Calibrating…'
+};
+
+let st = null;          // last status from the device
+let freq = 0;           // frequency shown; runs ahead of the device while tuning
+let pending = null;     // frequency waiting to be sent
+let inflight = false;
+let lastLocalMs = 0;
+let online = false;
+
+// ---------------------------------------------------------------- helpers
+let toastTimer = 0;
+function toast(text, isErr) {
+  const t = $('toast');
+  t.textContent = text;
+  t.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, isErr ? 4500 : 2500);
+}
+
+async function post(url, data) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams(data || {})
+  });
+  let j = null;
+  try { j = await res.json(); } catch (e) { /* not JSON */ }
+  if (j && j.status) apply(j.status);
+  if (!res.ok || (j && j.ok === false)) throw new Error((j && j.error) || (res.status + ' ' + res.statusText));
+  return j || {};
+}
+
+function run(promise, okText) {
+  return promise.then(r => { if (okText) toast(okText); return r; }).catch(e => { toast(e.message, true); });
+}
+
+const toMHz = hz => String(+(hz / 1e6).toFixed(6));
+function fmtMHz(hz) {
+  const m = Math.floor(hz / 1e6), r = String(hz % 1e6).padStart(6, '0');
+  return m + '.' + r.slice(0, 3) + ' ' + r.slice(3);
+}
+function mhzToHz(text) {
+  const v = parseFloat(String(text).replace(',', '.'));
+  return Number.isFinite(v) ? Math.round(v * 1e6) : NaN;
+}
+function kv(dl, rows) {
+  dl.textContent = '';
+  for (const [k, v, cls] of rows) {
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = v;
+    if (cls) dd.className = cls;
+    dl.append(dt, dd);
+  }
+}
+function setPressed(seg, value) {
+  for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === value));
+}
+
+// ---------------------------------------------------------------- frequency display
+// The digit spans are built once per layout and then updated in place: replacing them
+// on every status update (4 per second) would lose clicks whose mousedown and mouseup
+// land on different elements.
+let digitSpans = [];
+let digitLayout = -1;
+function renderDigits() {
+  const el = $('digits');
+  const mhzDigits = String(Math.floor(st.max_hz / 1e6)).length;
+  if (mhzDigits !== digitLayout) {
+    digitLayout = mhzDigits;
+    digitSpans = [];
+    el.textContent = '';
+    const n = mhzDigits + 6;
+    for (let i = 0; i < n; i++) {
+      if (i === mhzDigits) el.append('.');
+      if (i === mhzDigits + 3) el.append(' ');
+      const s = document.createElement('span');
+      s.dataset.w = 10 ** (n - 1 - i);
+      digitSpans.push(s);
+      el.append(s);
+    }
+  }
+  const all = String(Math.floor(freq / 1e6)).padStart(mhzDigits, ' ') + String(freq % 1e6).padStart(6, '0');
+  const stepW = STEPS[st.step_index];
+  digitSpans.forEach((s, i) => {
+    // Only touch what changed: rewriting even an identical text node cancels a click in progress.
+    const cls = 'd' + (Number(s.dataset.w) === stepW ? ' step' : '') + (all[i] === ' ' ? ' lead' : '');
+    const txt = all[i] === ' ' ? '0' : all[i];
+    if (s.className !== cls) s.className = cls;
+    if (s.textContent !== txt) s.textContent = txt;
+  });
+  const lcd = $('lcd');
+  lcd.setAttribute('aria-valuenow', freq);
+  lcd.setAttribute('aria-valuemin', st.min_hz);
+  lcd.setAttribute('aria-valuemax', st.max_hz);
+  lcd.setAttribute('aria-valuetext', fmtMHz(freq) + ' MHz');
+}
+
+function tuneTo(hz) {
+  if (!st) return;
+  hz = Math.min(st.max_hz, Math.max(st.min_hz, Math.round(hz)));
+  if (hz === freq) return;
+  freq = hz;
+  pending = hz;
+  lastLocalMs = Date.now();
+  renderDigits();
+  pump();
+}
+
+// One request in flight at a time, always carrying the latest target: fast scrolling
+// coalesces instead of queueing.
+async function pump() {
+  if (inflight || pending === null) return;
+  const hz = pending;
+  pending = null;
+  inflight = true;
+  try { await post('/api/freq', {hz}); } catch (e) { toast(e.message, true); }
+  inflight = false;
+  lastLocalMs = Date.now();
+  if (pending !== null) pump();
+}
+
+const step = () => STEPS[st.step_index];
+function setStep(index) {
+  if (!st) return;
+  index = Math.max(0, Math.min(st.max_step_index, index));
+  if (index === st.step_index) return;
+  st.step_index = index;
+  renderDigits();
+  renderStep();
+  run(post('/api/step', {index}));
+}
+
+const digits = $('digits');
+let wheelAcc = 0;
+digits.addEventListener('wheel', e => {
+  const d = e.target.closest('.d');
+  if (!d || !st) return;
+  e.preventDefault();
+  let n;
+  if (e.deltaMode === 0) {          // pixels: trackpads send many small deltas
+    wheelAcc += e.deltaY;
+    if (Math.abs(wheelAcc) < 50) return;
+    n = Math.sign(wheelAcc);
+    wheelAcc = 0;
+  } else {
+    n = Math.sign(e.deltaY);
+  }
+  tuneTo(freq - n * Number(d.dataset.w));
+}, {passive: false});
+digits.addEventListener('click', e => {
+  const d = e.target.closest('.d');
+  if (!d || !st) return;
+  const r = d.getBoundingClientRect();
+  tuneTo(freq + (e.clientY < r.top + r.height / 2 ? 1 : -1) * Number(d.dataset.w));
+});
+$('lcd').addEventListener('keydown', e => {
+  if (!st) return;
+  const k = {ArrowUp: () => tuneTo(freq + step()), ArrowDown: () => tuneTo(freq - step()),
+             ArrowLeft: () => setStep(st.step_index + 1), ArrowRight: () => setStep(st.step_index - 1)}[e.key];
+  if (k) { e.preventDefault(); k(); }
+});
+
+// +/- buttons repeat while held.
+function repeatButton(btn, dir) {
+  let timer = 0;
+  const stop = () => { clearTimeout(timer); timer = 0; };
+  const tick = delay => { tuneTo(freq + dir * step()); timer = setTimeout(() => tick(90), delay); };
+  btn.addEventListener('pointerdown', e => { if (!st) return; e.preventDefault(); stop(); tick(450); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, stop);
+  btn.addEventListener('keydown', e => { if (st && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tuneTo(freq + dir * step()); } });
+}
+repeatButton($('up'), 1);
+repeatButton($('down'), -1);
+
+$('step').addEventListener('change', e => setStep(Number(e.target.value)));
+
+$('freqForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!st) return;
+  const v = parseFloat($('freqIn').value.replace(',', '.'));
+  const hz = Math.round(v * Number($('unit').value));
+  if (!Number.isFinite(hz)) return toast('Enter a number', true);
+  if (hz < st.min_hz || hz > st.max_hz) return toast(`Out of range: ${toMHz(st.min_hz)}–${toMHz(st.max_hz)} MHz`, true);
+  tuneTo(hz);
+  $('freqIn').value = '';
+});
+
+// ---------------------------------------------------------------- other controls
+$('rfSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) run(post('/api/rf', {on: b.dataset.v}));
+});
+$('refSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) run(post('/api/ref', {mode: b.dataset.v}));
+});
+$('calBtn').addEventListener('click', () => run(post('/api/calibrate'), 'Calibrating…'));
+$('saveBtn').addEventListener('click', () => run(post('/api/save'), 'Saved as the power-on default'));
+
+// ---------------------------------------------------------------- rendering
+function renderStep() {
+  const sel = $('step');
+  if (sel.options.length !== st.max_step_index + 1) {
+    sel.textContent = '';
+    for (let i = 0; i <= st.max_step_index; i++) sel.append(new Option('Step ' + STEP_NAMES[i], i));
+  }
+  sel.value = String(st.step_index);
+}
+
+function chip(text, cls) {
+  const c = document.createElement('span');
+  c.className = 'chip' + (cls ? ' ' + cls : '');
+  c.textContent = text;
+  return c;
+}
+
+function refLabel(s) {
+  if (s.ref === 'int') return 'Internal';
+  let t = 'External ' + s.ref_status;
+  if (s.ref_status === 'LOCK' || s.ref_status === 'TRK') t += ` ${s.ref_err_ppm >= 0 ? '+' : ''}${s.ref_err_ppm.toFixed(2)} ppm`;
+  return t;
+}
+
+function ppm(a, b) { return b ? ((a / b - 1) * 1e6) : 0; }
+
+function render() {
+  const s = st;
+  renderDigits();
+  renderStep();
+
+  const chips = $('chips');
+  chips.textContent = '';
+  chips.append(s.si570.ready ? chip('Si570 OK', 'ok') : chip('Si570 not found', 'bad'));
+  if (s.has_rf) chips.append(s.rf_on ? chip('RF on', 'ok') : chip('RF off', 'warn'));
+  if (s.has_ref) {
+    const good = s.ref === 'int' || s.ref_status === 'LOCK';
+    chips.append(chip('Ref ' + refLabel(s), good ? 'ok' : (s.ref_status === 'NREF' || s.ref_status === 'NSIG') ? 'bad' : 'warn'));
+  }
+  if (!s.si570.plausible) chips.append(chip('Check start-up frequency', 'bad'));
+
+  $('rfRow').hidden = !s.has_rf;
+  setPressed($('rfSeg'), s.rf_on ? '1' : '0');
+  $('refRow').hidden = !s.has_ref;
+  setPressed($('refSeg'), s.ref);
+  $('calBtn').hidden = !s.has_ref;
+  $('calBtn').disabled = s.ref !== 'ext' || s.calibrating || !s.si570.ready;
+
+  const rows = [];
+  if (s.has_ref) rows.push(['Status', REF_TEXT[s.ref_status] || s.ref_status]);
+  if (s.ref === 'ext' && (s.ref_status === 'LOCK' || s.ref_status === 'TRK')) rows.push(['Output error', s.ref_err_ppm.toFixed(3) + ' ppm']);
+  if (s.si570.ready) {
+    rows.push(['Crystal in use', s.si570.xtal_hz.toLocaleString() + ' Hz']);
+    if (s.si570.xtal_hz !== s.si570.factory_xtal_hz)
+      rows.push(['Correction', `${ppm(s.si570.xtal_hz, s.si570.factory_xtal_hz).toFixed(3)} ppm vs factory`]);
+  }
+  if (s.has_ref) rows.push(['Reference frequency', toMHz(s.ref_hz) + ' MHz']);
+  kv($('refKv'), rows);
+
+  const hw = [['Si570', s.si570.ready ? `responding at 0x${s.si570.address.toString(16).toUpperCase()}` : `no reply at 0x${s.si570.address.toString(16).toUpperCase()}`, s.si570.ready ? '' : 'warntext']];
+  if (s.si570.ready) hw.push(['Factory crystal', s.si570.factory_xtal_hz.toLocaleString() + ' Hz']);
+  if (!s.si570.plausible) hw.push(['Start-up frequency', `looks wrong; this part probably starts at ${toMHz(s.si570.likely_startup_hz)} MHz`, 'warntext']);
+  kv($('hwKv'), hw);
+
+  const msg = $('msg');
+  msg.hidden = !s.message;
+  msg.textContent = s.message;
+  $('authWarn').hidden = s.auth_required;
+
+  const w = s.wifi;
+  const parts = [w.hostname, w.ip, 'v' + s.version];
+  parts.push(w.mode === 'ap' ? `set-up hotspot “${w.ssid}”` : `Wi-Fi ${w.ssid} ${w.rssi} dBm`);
+  $('meta').textContent = parts.join(' · ');
+}
+
+function apply(s) {
+  st = s;
+  if (!inflight && pending === null && Date.now() - lastLocalMs > 600) freq = s.freq_hz;
+  render();
+}
+
+function setOnline(up) {
+  if (up === online) return;
+  online = up;
+  if (!up) $('meta').textContent = 'Connection lost, retrying…';
+}
+
+// ---------------------------------------------------------------- live updates
+let ws = null;
+let pollTimer = 0;
+async function poll() {
+  try {
+    const r = await fetch('/status', {cache: 'no-store'});
+    apply(await r.json());
+    setOnline(true);
+  } catch (e) { setOnline(false); }
+}
+function startPolling() { if (!pollTimer) { pollTimer = setInterval(poll, 1000); poll(); } }
+function stopPolling() { clearInterval(pollTimer); pollTimer = 0; }
+function connectWs() {
+  try { ws = new WebSocket(`ws://${location.hostname}:81/`); } catch (e) { startPolling(); return; }
+  ws.onopen = () => { stopPolling(); setOnline(true); };
+  ws.onmessage = ev => { try { apply(JSON.parse(ev.data)); } catch (e) { /* ignore */ } };
+  ws.onclose = () => { ws = null; startPolling(); setTimeout(connectWs, 5000); };
+}
+
+// ---------------------------------------------------------------- settings forms
+async function loadConfig() {
+  try {
+    const c = await (await fetch('/config', {cache: 'no-store'})).json();
+    fillForms(c);
+  } catch (e) { toast('Could not load the settings', true); }
+}
+function fillForms(c) {
+  if (c.hardware) {
+    const h = c.hardware;
+    if (h.si570_address != null) $('hwAddr').value = '0x' + Number(h.si570_address).toString(16).toUpperCase();
+    if (h.startup_hz != null) $('hwStart').value = toMHz(h.startup_hz);
+    if (h.reg_base != null) $('hwBank').value = String(h.reg_base);
+    if (h.oe_active_high != null) $('hwOe').value = h.oe_active_high ? '1' : '0';
+    if (h.min_hz != null) $('hwMin').value = toMHz(h.min_hz);
+    if (h.max_hz != null) $('hwMax').value = toMHz(h.max_hz);
+    if (h.ref_hz != null) $('hwRef').value = toMHz(h.ref_hz);
+  }
+  if (c.ssid != null) $('ssid').value = c.ssid;
+  if (c.hostname != null) $('host').value = c.hostname;
+}
+
+$('hwForm').addEventListener('submit', e => {
+  e.preventDefault();
+  let addr = $('hwAddr').value.trim();
+  if (/^[0-9a-f]{1,2}$/i.test(addr)) addr = '0x' + addr;  // I2C addresses are written in hex
+  if (!/^0x[0-9a-f]{1,2}$/i.test(addr)) return toast('I²C address: hex, e.g. 0x55', true);
+  const data = {
+    si570_address: addr,
+    startup_hz: mhzToHz($('hwStart').value),
+    reg_base: $('hwBank').value,
+    oe_active_high: $('hwOe').value,
+    min_hz: mhzToHz($('hwMin').value),
+    max_hz: mhzToHz($('hwMax').value),
+    ref_hz: mhzToHz($('hwRef').value)
+  };
+  for (const [k, v] of Object.entries(data)) if (Number.isNaN(v)) return toast('Check the ' + k.replace('_hz', '') + ' value', true);
+  run(post('/save/hardware', data), 'Hardware settings saved').then(loadConfig);
+});
+
+$('netForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await run(post('/save/network', {ssid: $('ssid').value, pass: $('pass').value, hostname: $('host').value.trim()}));
+  if (!r) return;
+  $('pass').value = '';
+  if (confirm('Network settings saved. Reboot now to apply them?')) reboot();
+});
+
+$('adminForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pass = $('adminPass').value;
+  if (!pass) return toast('Enter a password', true);
+  const r = await run(post('/save/admin', {admin_pass: pass}), 'Password set; the browser will ask for it next time');
+  if (r) $('adminPass').value = '';
+});
+
+$('fwForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = $('fwFile').files[0];
+  if (!f) return toast('Choose a firmware .bin file', true);
+  if (!confirm(`Install ${f.name} (${Math.round(f.size / 1024)} KB) and reboot?`)) return;
+  const prog = $('fwProg');
+  prog.hidden = false;
+  prog.value = 0;
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/update');
+  xhr.upload.onprogress = ev => { if (ev.lengthComputable) prog.value = 100 * ev.loaded / ev.total; };
+  xhr.onload = () => {
+    if (xhr.status === 200) {
+      toast('Installed. Rebooting…');
+      setTimeout(() => location.reload(), 12000);
+    } else {
+      let msg = xhr.status + ' ' + xhr.statusText;
+      try { msg = JSON.parse(xhr.responseText).error || msg; } catch (err) { /* keep */ }
+      toast('Update failed: ' + msg, true);
+      prog.hidden = true;
+    }
+  };
+  xhr.onerror = () => { toast('Upload failed: connection error', true); prog.hidden = true; };
+  const fd = new FormData();
+  fd.append('firmware', f, f.name);
+  xhr.send(fd);
+});
+
+$('restoreFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      fillForms(JSON.parse(r.result));
+      $('hwCard').open = true;
+      $('netCard').open = true;
+      toast('Backup loaded into the forms. Review and save each section.');
+    } catch (err) { toast('Not a valid backup file', true); }
+    e.target.value = '';
+  };
+  r.readAsText(f);
+});
+
+function reboot() {
+  run(post('/reboot'), 'Rebooting…').then(() => setTimeout(() => location.reload(), 10000));
+}
+$('rebootBtn').addEventListener('click', () => { if (confirm('Reboot the generator?')) reboot(); });
+$('resetBtn').addEventListener('click', () => {
+  if (!confirm('Erase all settings, including Wi-Fi and the admin password, and reboot?')) return;
+  run(post('/factory_reset', {confirm: 'YES'}), 'Erased. Rebooting into the set-up hotspot…');
+});
+
+poll();
+connectWs();
+loadConfig();
+})();
+</script>
+</body>
+</html>
