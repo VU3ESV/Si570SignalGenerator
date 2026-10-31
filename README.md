@@ -147,13 +147,64 @@ Without one, set *Si5351 fitted* to *No* and the extra outputs disappear.
   PLLB: so CLK2 and *one* of CLK0/CLK1 can be above 100 MHz together. The page tells you
   when a setting is refused for this reason.
 - **Accuracy:** the module's 25 MHz crystal is typically 10–30 ppm off, and the external
-  10 MHz reference only corrects the Si570. Calibrate once: select a CLK output, measure
-  it with a counter you trust (e.g. locked to your GPSDO), and enter the reading under
-  *Si5351 hardware → Calibrate from a measurement*. The page works out the correction
-  (+ = crystal runs fast) and stores it; it applies to all three outputs.
+  10 MHz reference input only corrects the Si570. Two ways to fix that:
+  - **Calibrate once from a measurement** (crystal stays on the board): select a CLK
+    output, measure it with a counter you trust (e.g. locked to your GPSDO), and enter
+    the reading under *Si5351 hardware → Calibrate from a measurement*. The page works
+    out the correction (+ = crystal runs fast) and stores it; it applies to all three
+    outputs. The crystal still drifts a few ppm with temperature.
+  - **Lock it to a GPSDO** by replacing the crystal with a GPS-locked 25 MHz clock: see
+    below. Every output is then exactly on frequency, at any frequency.
 
 The Si5351 library is **GPL-3.0**: firmware binaries built from this project include it
 and are therefore GPL-3.0 as a whole.
+
+### Locking the Si5351 to a GPSDO
+
+Breakout boards (Adafruit and clones) use the **Si5351A**, which has no reference input:
+the reference input CLKIN (10–100 MHz) exists only on the Si5351C. But the crystal input
+**XA** accepts a clock in place of the crystal (datasheet section 5.6, "Applying a
+Reference Clock at XTAL Input"): **25 or 27 MHz, about 1 V p-p, through 0.1 µF, with XB
+left unconnected**. The PLLs then run from the GPSDO, so all three outputs are locked to
+it at every frequency, with no correction loop and no 40 MHz limit (unlike the Si570's
+reference loop).
+
+1. **Set one GPSDO output to exactly 25 MHz.** A programmable GPSDO such as the
+   LBE-1421 can do this; its other output can keep feeding 10 MHz to the Si570's
+   reference input.
+2. **Remove the 25 MHz crystal** from the board. On the 10-pin chip, pin 1 (dot) is VDD,
+   **pin 2 is XA** and pin 3 is XB; the crystal sits across pins 2 and 3. Find which
+   crystal pad goes to pin 2 with a meter.
+3. **Wire the clock to that pad:**
+
+   ```
+   GPSDO 25 MHz ── coax ── attenuator ──┬── 0.1 µF ── XA (crystal pad to pin 2)
+                                        51 Ω
+                                        │
+                                       GND (board ground)       XB pad: unconnected
+   ```
+
+4. **Keep the level down.** XA's absolute maximum is **−0.5 V to +1.3 V**, and the
+   datasheet drives it with about **1 V p-p**. A 3.3 V logic clock, even through the
+   capacitor, exceeds that and can damage the chip. Terminate the coax in 51 Ω at the
+   board and reduce the level with an inline attenuator (6–10 dB) or the GPSDO's lowest
+   drive setting; check it with a scope if you can. Err on the low side: the input
+   amplifier squares up a small signal.
+5. **On the web page**, under *Si5351 hardware*: crystal **25 MHz**, correction **0**.
+   No firmware change is needed.
+6. **Check** any CLK output with your GPSDO-locked counter: it should read exactly the
+   set frequency.
+
+Notes:
+
+- Once the crystal is gone, the board only works with the GPSDO connected.
+- 10 MHz straight into XA is outside the datasheet's 25–27 MHz range. It is reported to
+  work, but it isn't guaranteed; use 25 MHz when the GPSDO can make it.
+- The firmware doesn't yet check the Si5351's PLL lock status, so a missing or too weak
+  clock on XA is not flagged: the outputs simply go wrong. Check with a counter after
+  wiring it up.
+- A Si5351C module could take the 10 MHz reference directly on CLKIN instead; the
+  firmware would need a small change to select that input.
 
 ## How "external 10 MHz reference" works with an Si570
 
@@ -374,3 +425,5 @@ feed on port 81, and the `min_spiffs` partition table.
 - KO7M Si570 driver: https://github.com/ko7m/Si570
 - Etherkit Si5351Arduino: https://github.com/etherkit/Si5351Arduino
 - Skyworks (Silicon Labs) AN619, "Manually Generating an Si5351 Register Map"
+- Skyworks (formerly Silicon Labs) Si5351A/B/C-B datasheet, Rev. 0.75: XA as a clock
+  input (section 5.6, Fig. 16), absolute maximum ratings, 10-MSOP pinout (Table 13)
