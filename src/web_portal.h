@@ -4,13 +4,17 @@
 //   GET  /status           live state as JSON           (open, read-only)
 //   GET  /config           settings as JSON, no secrets (open; ?download=1 for a backup file)
 //   GET  /discover         identity for discovery tools (open)
-//   POST /api/freq         hz=<Hz>
+//   POST /api/freq         hz=<Hz> [output=0-3]   (0 = Si570, the default; 1-3 = Si5351 CLK0-2)
 //   POST /api/step         index=<0..8>   (1 Hz ... 100 MHz)
-//   POST /api/ref          mode=int|ext
-//   POST /api/rf           on=1|0
+//   POST /api/ref          mode=int|ext   (the Si570's reference)
+//   POST /api/rf           on=1|0 [output=0-3]
+//   POST /api/output       output=0-3     select the output the encoder and display work on
+//   POST /api/drive        output=1-3 ma=2|4|6|8   Si5351 drive strength
 //   POST /api/calibrate    calibrate against the external reference now
 //   POST /api/save         save the current state as the power-on default
-//   POST /save/hardware    Si570 part, frequency limits, OE polarity, reference frequency
+//   POST /save/hardware    Si570 part, frequency limits, OE polarity, reference frequency,
+//                          si570_corr_ppb (internal-reference correction);
+//                          Si5351 s5_enabled, s5_address, s5_xtal_hz, s5_corr_ppb, s5_min_hz, s5_max_hz
 //   POST /save/network     ssid, pass (blank = keep), hostname; applies after a reboot
 //   POST /save/admin       admin_pass
 //   POST /update           firmware .bin upload (multipart), reboots when done
@@ -47,6 +51,8 @@ class WebPortal {
   bool isAdmin();
   bool requireAdmin();
   bool argUInt(const char* name, uint32_t& out);
+  bool argInt(const char* name, int32_t& out);
+  bool argOutput(uint8_t& out);
   void sendJson(int code, const String& body);
   void sendError(int code, const String& message);
   void sendResult(CmdResult r);
@@ -59,6 +65,8 @@ class WebPortal {
   void handleStep();
   void handleRef();
   void handleRf();
+  void handleOutput();
+  void handleDrive();
   void handleSaveHardware();
   void handleSaveNetwork();
   void handleSaveAdmin();

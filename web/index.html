@@ -8,6 +8,7 @@
 :root{--bg:#f4f5f7;--card:#fff;--text:#1d232b;--muted:#5d6876;--line:#d9dee5;--accent:#0a66c2;--accent-text:#fff;--ok:#1f7a3a;--warn:#9a5800;--bad:#b42318;--lcd-bg:#0f1d13;--lcd-fg:#8cff9e;--lcd-dim:#2d4b34;--lcd-hi:#f0fff2}
 @media (prefers-color-scheme:dark){:root{--bg:#0e1116;--card:#161a21;--text:#e5e8ec;--muted:#98a3b1;--line:#2a313b;--accent:#4c9dff;--accent-text:#0b0e13;--ok:#4cc36a;--warn:#e0a03a;--bad:#ff6b5e}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:640px;margin:0 auto;padding:16px}
 a{color:var(--accent)}
@@ -61,6 +62,14 @@ progress{width:100%;margin-top:.6rem}
 #toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:.55rem .9rem;border-radius:8px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px)}
 #toast.show{opacity:1}
 #toast.err{background:var(--bad);color:#fff}
+.outs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+@media (max-width:480px){.outs{grid-template-columns:repeat(2,1fr)}}
+.out{text-align:left;padding:.4rem .6rem}
+.out[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.out b{display:block;font-size:.78rem;color:var(--muted);font-weight:600}
+.out span{display:block;font-variant-numeric:tabular-nums;font-size:.92rem;white-space:nowrap}
+.out.off span{color:var(--muted)}
+.out.missing span{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -75,6 +84,7 @@ progress{width:100%;margin-top:.6rem}
 
 <section class="card" aria-labelledby="hFreq">
   <h2 id="hFreq" class="sr-only">Output frequency</h2>
+  <div class="outs" id="outs" role="group" aria-label="Output to control" hidden></div>
   <div class="lcd" id="lcd" tabindex="0" role="spinbutton" aria-label="Output frequency">
     <span class="digits" id="digits">–</span><span class="unit">MHz</span>
   </div>
@@ -94,8 +104,9 @@ progress{width:100%;margin-top:.6rem}
 
 <section class="card">
   <h2>Output and reference</h2>
-  <div class="ctl" id="rfRow"><span>RF output</span><div class="seg" id="rfSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
-  <div class="ctl" id="refRow"><span>Reference</span><div class="seg" id="refSeg"><button type="button" data-v="int">Internal</button><button type="button" data-v="ext">External</button></div></div>
+  <div class="ctl" id="rfRow"><span id="rfLabel">RF output</span><div class="seg" id="rfSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
+  <div class="ctl" id="driveRow"><span>Drive (≈ +3 to +10 dBm)</span><div class="seg" id="driveSeg"><button type="button" data-v="2">2 mA</button><button type="button" data-v="4">4</button><button type="button" data-v="6">6</button><button type="button" data-v="8">8</button></div></div>
+  <div class="ctl" id="refRow"><span>Si570 reference</span><div class="seg" id="refSeg"><button type="button" data-v="int">Internal</button><button type="button" data-v="ext">External</button></div></div>
   <dl class="kv" id="refKv"></dl>
   <div class="row" style="margin-top:.9rem">
     <button type="button" id="calBtn">Calibrate now</button>
@@ -114,9 +125,40 @@ progress{width:100%;margin-top:.6rem}
       <div><label for="hwMin">Lowest frequency (MHz)</label><input id="hwMin" inputmode="decimal" autocomplete="off"></div>
       <div><label for="hwMax">Highest frequency (MHz)</label><input id="hwMax" inputmode="decimal" autocomplete="off"></div>
       <div><label for="hwRef">External reference (MHz)</label><input id="hwRef" inputmode="decimal" autocomplete="off"></div>
+      <div><label for="hwCorr">Correction, internal reference (ppm, + = crystal fast)</label><input id="hwCorr" inputmode="decimal" autocomplete="off" placeholder="0"></div>
     </div>
     <dl class="kv" id="hwKv"></dl>
     <button class="primary" style="margin-top:.9rem">Save hardware settings</button>
+  </form>
+  <form id="hwCalForm" style="margin-top:1rem">
+    <label for="hwMeas">Calibrate from a measurement (internal reference): measure the Si570 output with a counter you trust and enter the reading</label>
+    <div class="row">
+      <input id="hwMeas" class="grow" inputmode="decimal" autocomplete="off" placeholder="Measured frequency, MHz">
+      <button>Apply correction</button>
+    </div>
+  </form>
+</details>
+
+<details class="card" id="s5Card"><summary>Si5351 hardware</summary>
+  <p class="note">CLK0–CLK2 of a Si5351 on the same I²C bus become outputs next to the Si570. CLK0 and CLK1 share a PLL, so only one of them can be above 100 MHz at a time; CLK2 has its own.</p>
+  <form id="s5Form">
+    <div class="grid">
+      <div><label for="s5En">Si5351 fitted</label><select id="s5En"><option value="1">Yes</option><option value="0">No</option></select></div>
+      <div><label for="s5Addr">I²C address (hex)</label><input id="s5Addr" autocomplete="off" placeholder="0x60"></div>
+      <div><label for="s5Xtal">Crystal (MHz)</label><input id="s5Xtal" inputmode="decimal" autocomplete="off" placeholder="25"></div>
+      <div><label for="s5Corr">Correction (ppm, + = crystal fast)</label><input id="s5Corr" inputmode="decimal" autocomplete="off" placeholder="0"></div>
+      <div><label for="s5Min">Lowest frequency (MHz)</label><input id="s5Min" inputmode="decimal" autocomplete="off"></div>
+      <div><label for="s5Max">Highest frequency (MHz)</label><input id="s5Max" inputmode="decimal" autocomplete="off"></div>
+    </div>
+    <dl class="kv" id="s5Kv"></dl>
+    <button class="primary" style="margin-top:.9rem">Save Si5351 settings</button>
+  </form>
+  <form id="s5CalForm" style="margin-top:1rem">
+    <label for="s5Meas">Calibrate from a measurement: select a CLK output, measure it with a counter you trust and enter the reading</label>
+    <div class="row">
+      <input id="s5Meas" class="grow" inputmode="decimal" autocomplete="off" placeholder="Measured frequency, MHz">
+      <button>Apply correction</button>
+    </div>
   </form>
 </details>
 
@@ -170,6 +212,7 @@ const STEPS = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8];
 const STEP_NAMES = ['1 Hz', '10 Hz', '100 Hz', '1 kHz', '10 kHz', '100 kHz', '1 MHz', '10 MHz', '100 MHz'];
 const REF_TEXT = {
   INT: 'Internal crystal, factory calibration',
+  INTC: 'Internal crystal, corrected from a measurement',
   LOCK: 'Locked to the external reference',
   TRK: 'Correcting towards the external reference',
   HOLD: 'Holding the last correction (output above 40 MHz, or RF off)',
@@ -179,8 +222,9 @@ const REF_TEXT = {
 };
 
 let st = null;          // last status from the device
-let freq = 0;           // frequency shown; runs ahead of the device while tuning
-let pending = null;     // frequency waiting to be sent
+let freq = 0;           // frequency of the selected output; runs ahead of the device while tuning
+let pending = null;     // {output, hz} waiting to be sent
+let shownOut = -1;      // output the display was last showing
 let inflight = false;
 let lastLocalMs = 0;
 let online = false;
@@ -234,6 +278,9 @@ function setPressed(seg, value) {
   for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === value));
 }
 
+// The selected output: what the display, the step and the RF/drive controls act on.
+const cur = () => st.outputs[st.selected];
+
 // ---------------------------------------------------------------- frequency display
 // The digit spans are built once per layout and then updated in place: replacing them
 // on every status update (4 per second) would lose clicks whose mousedown and mouseup
@@ -242,7 +289,7 @@ let digitSpans = [];
 let digitLayout = -1;
 function renderDigits() {
   const el = $('digits');
-  const mhzDigits = String(Math.floor(st.max_hz / 1e6)).length;
+  const mhzDigits = String(Math.floor(cur().max_hz / 1e6)).length;
   if (mhzDigits !== digitLayout) {
     digitLayout = mhzDigits;
     digitSpans = [];
@@ -268,17 +315,18 @@ function renderDigits() {
   });
   const lcd = $('lcd');
   lcd.setAttribute('aria-valuenow', freq);
-  lcd.setAttribute('aria-valuemin', st.min_hz);
-  lcd.setAttribute('aria-valuemax', st.max_hz);
+  lcd.setAttribute('aria-valuemin', cur().min_hz);
+  lcd.setAttribute('aria-valuemax', cur().max_hz);
+  lcd.setAttribute('aria-label', cur().name + ' frequency');
   lcd.setAttribute('aria-valuetext', fmtMHz(freq) + ' MHz');
 }
 
 function tuneTo(hz) {
   if (!st) return;
-  hz = Math.min(st.max_hz, Math.max(st.min_hz, Math.round(hz)));
+  hz = Math.min(cur().max_hz, Math.max(cur().min_hz, Math.round(hz)));
   if (hz === freq) return;
   freq = hz;
-  pending = hz;
+  pending = {output: st.selected, hz};
   lastLocalMs = Date.now();
   renderDigits();
   pump();
@@ -288,10 +336,16 @@ function tuneTo(hz) {
 // coalesces instead of queueing.
 async function pump() {
   if (inflight || pending === null) return;
-  const hz = pending;
+  const p = pending;
   pending = null;
   inflight = true;
-  try { await post('/api/freq', {hz}); } catch (e) { toast(e.message, true); }
+  try {
+    await post('/api/freq', p);
+  } catch (e) {
+    toast(e.message, true);
+    // Refused (out of range, PLL in use): show what the output is really doing at once.
+    if (pending === null && st && st.selected === p.output) { freq = cur().freq_hz; render(); }
+  }
   inflight = false;
   lastLocalMs = Date.now();
   if (pending !== null) pump();
@@ -358,7 +412,7 @@ $('freqForm').addEventListener('submit', e => {
   const v = parseFloat($('freqIn').value.replace(',', '.'));
   const hz = Math.round(v * Number($('unit').value));
   if (!Number.isFinite(hz)) return toast('Enter a number', true);
-  if (hz < st.min_hz || hz > st.max_hz) return toast(`Out of range: ${toMHz(st.min_hz)}–${toMHz(st.max_hz)} MHz`, true);
+  if (hz < cur().min_hz || hz > cur().max_hz) return toast(`Out of range: ${toMHz(cur().min_hz)}–${toMHz(cur().max_hz)} MHz`, true);
   tuneTo(hz);
   $('freqIn').value = '';
 });
@@ -366,7 +420,15 @@ $('freqForm').addEventListener('submit', e => {
 // ---------------------------------------------------------------- other controls
 $('rfSeg').addEventListener('click', e => {
   const b = e.target.closest('button');
-  if (b) run(post('/api/rf', {on: b.dataset.v}));
+  if (b && st) run(post('/api/rf', {on: b.dataset.v, output: st.selected}));
+});
+$('driveSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b && st) run(post('/api/drive', {ma: b.dataset.v, output: st.selected}));
+});
+$('outs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b && st && Number(b.dataset.v) !== st.selected) run(post('/api/output', {output: b.dataset.v}));
 });
 $('refSeg').addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -401,30 +463,69 @@ function refLabel(s) {
 
 function ppm(a, b) { return b ? ((a / b - 1) * 1e6) : 0; }
 
+// One button per output, built once and then updated in place (see renderDigits).
+let outButtons = [];
+function renderOutputs() {
+  const box = $('outs');
+  const fitted = st.outputs.filter(o => o.fitted).length;
+  box.hidden = fitted < 2;
+  if (outButtons.length !== st.outputs.length) {
+    box.textContent = '';
+    outButtons = st.outputs.map((o, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'out';
+      b.dataset.v = i;
+      b.append(document.createElement('b'), document.createElement('span'));
+      box.append(b);
+      return b;
+    });
+  }
+  st.outputs.forEach((o, i) => {
+    const b = outButtons[i];
+    b.hidden = !o.fitted;
+    const shown = i === st.selected ? freq : o.freq_hz;
+    const cls = 'out' + (!o.ready ? ' missing' : (o.has_rf && !o.rf_on ? ' off' : ''));
+    const name = o.name + (o.has_rf && !o.rf_on ? ' · off' : '');
+    const value = o.ready ? fmtMHz(shown) : 'not found';
+    if (b.className !== cls) b.className = cls;
+    if (b.firstChild.textContent !== name) b.firstChild.textContent = name;
+    if (b.lastChild.textContent !== value) b.lastChild.textContent = value;
+    b.setAttribute('aria-pressed', String(i === st.selected));
+  });
+}
+
 function render() {
   const s = st;
+  const o = cur();
+  const isClock = s.selected !== 0;
+  renderOutputs();
   renderDigits();
   renderStep();
 
   const chips = $('chips');
   chips.textContent = '';
   chips.append(s.si570.ready ? chip('Si570 OK', 'ok') : chip('Si570 not found', 'bad'));
-  if (s.has_rf) chips.append(s.rf_on ? chip('RF on', 'ok') : chip('RF off', 'warn'));
+  if (s.si5351.enabled) chips.append(s.si5351.ready ? chip('Si5351 OK', 'ok') : chip('Si5351 not found', 'bad'));
+  if (o.has_rf) chips.append(o.rf_on ? chip(o.name + ' RF on', 'ok') : chip(o.name + ' RF off', 'warn'));
   if (s.has_ref) {
     const good = s.ref === 'int' || s.ref_status === 'LOCK';
     chips.append(chip('Ref ' + refLabel(s), good ? 'ok' : (s.ref_status === 'NREF' || s.ref_status === 'NSIG') ? 'bad' : 'warn'));
   }
   if (!s.si570.plausible) chips.append(chip('Check start-up frequency', 'bad'));
 
-  $('rfRow').hidden = !s.has_rf;
-  setPressed($('rfSeg'), s.rf_on ? '1' : '0');
+  $('rfRow').hidden = !o.has_rf;
+  $('rfLabel').textContent = o.name + ' RF output';
+  setPressed($('rfSeg'), o.rf_on ? '1' : '0');
+  $('driveRow').hidden = !isClock;
+  setPressed($('driveSeg'), String(o.drive_ma));
   $('refRow').hidden = !s.has_ref;
   setPressed($('refSeg'), s.ref);
   $('calBtn').hidden = !s.has_ref;
   $('calBtn').disabled = s.ref !== 'ext' || s.calibrating || !s.si570.ready;
 
   const rows = [];
-  if (s.has_ref) rows.push(['Status', REF_TEXT[s.ref_status] || s.ref_status]);
+  if (s.has_ref) rows.push(['Status', REF_TEXT[s.ref_status === 'INT' && s.si570.corr_ppb ? 'INTC' : s.ref_status] || s.ref_status]);
   if (s.ref === 'ext' && (s.ref_status === 'LOCK' || s.ref_status === 'TRK')) rows.push(['Output error', s.ref_err_ppm.toFixed(3) + ' ppm']);
   if (s.si570.ready) {
     rows.push(['Crystal in use', s.si570.xtal_hz.toLocaleString() + ' Hz']);
@@ -439,6 +540,11 @@ function render() {
   if (!s.si570.plausible) hw.push(['Start-up frequency', `looks wrong; this part probably starts at ${toMHz(s.si570.likely_startup_hz)} MHz`, 'warntext']);
   kv($('hwKv'), hw);
 
+  const c5 = s.si5351, a5 = '0x' + c5.address.toString(16).toUpperCase();
+  const s5 = [['Si5351', !c5.enabled ? 'not fitted (outputs hidden)' : c5.ready ? `responding at ${a5}` : `no reply at ${a5}`, c5.enabled && !c5.ready ? 'warntext' : '']];
+  if (c5.enabled) s5.push(['Crystal', `${toMHz(c5.xtal_hz)} MHz, correction ${(c5.corr_ppb / 1000).toFixed(3)} ppm`]);
+  kv($('s5Kv'), s5);
+
   const msg = $('msg');
   msg.hidden = !s.message;
   msg.textContent = s.message;
@@ -452,7 +558,12 @@ function render() {
 
 function apply(s) {
   st = s;
-  if (!inflight && pending === null && Date.now() - lastLocalMs > 600) freq = s.freq_hz;
+  if (s.selected !== shownOut) {          // another output selected (here, encoder or console)
+    shownOut = s.selected;
+    freq = cur().freq_hz;
+  } else if (!inflight && pending === null && Date.now() - lastLocalMs > 600) {
+    freq = cur().freq_hz;
+  }
   render();
 }
 
@@ -498,6 +609,16 @@ function fillForms(c) {
     if (h.min_hz != null) $('hwMin').value = toMHz(h.min_hz);
     if (h.max_hz != null) $('hwMax').value = toMHz(h.max_hz);
     if (h.ref_hz != null) $('hwRef').value = toMHz(h.ref_hz);
+    if (h.si570_corr_ppb != null) $('hwCorr').value = String(+(h.si570_corr_ppb / 1000).toFixed(3));
+  }
+  if (c.hardware && c.hardware.s5_address != null) {
+    const h = c.hardware;
+    $('s5En').value = h.s5_enabled ? '1' : '0';
+    $('s5Addr').value = '0x' + Number(h.s5_address).toString(16).toUpperCase();
+    $('s5Xtal').value = toMHz(h.s5_xtal_hz);
+    $('s5Corr').value = String(+(h.s5_corr_ppb / 1000).toFixed(3));
+    $('s5Min').value = toMHz(h.s5_min_hz);
+    $('s5Max').value = toMHz(h.s5_max_hz);
   }
   if (c.ssid != null) $('ssid').value = c.ssid;
   if (c.hostname != null) $('host').value = c.hostname;
@@ -515,10 +636,59 @@ $('hwForm').addEventListener('submit', e => {
     oe_active_high: $('hwOe').value,
     min_hz: mhzToHz($('hwMin').value),
     max_hz: mhzToHz($('hwMax').value),
-    ref_hz: mhzToHz($('hwRef').value)
+    ref_hz: mhzToHz($('hwRef').value),
+    si570_corr_ppb: Math.round(parseFloat($('hwCorr').value.replace(',', '.') || '0') * 1000)
   };
-  for (const [k, v] of Object.entries(data)) if (Number.isNaN(v)) return toast('Check the ' + k.replace('_hz', '') + ' value', true);
+  for (const [k, v] of Object.entries(data)) if (Number.isNaN(v)) return toast('Check the ' + k.replace('_hz', '').replace('_ppb', '') + ' value', true);
   run(post('/save/hardware', data), 'Hardware settings saved').then(loadConfig);
+});
+
+// Same maths as the Si5351 helper below (and correctionFromMeasurement() in the firmware).
+$('hwCalForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!st) return;
+  if (st.ref !== 'int') return toast('Switch the Si570 reference to Internal first', true);
+  const measured = parseFloat($('hwMeas').value.replace(',', '.')) * 1e6;
+  const set = st.outputs[0].freq_hz;
+  if (!Number.isFinite(measured) || Math.abs(measured / set - 1) > 500e-6)
+    return toast(`Enter the Si570 reading in MHz; it should be close to ${toMHz(set)}`, true);
+  const corrPpb = Math.round(((measured / set) * (1 + st.si570.corr_ppb / 1e9) - 1) * 1e9);
+  run(post('/save/hardware', {si570_corr_ppb: corrPpb}), `Si570 correction now ${(corrPpb / 1000).toFixed(3)} ppm`)
+    .then(r => { if (r) { $('hwMeas').value = ''; loadConfig(); } });
+});
+
+$('s5Form').addEventListener('submit', e => {
+  e.preventDefault();
+  let addr = $('s5Addr').value.trim();
+  if (/^[0-9a-f]{1,2}$/i.test(addr)) addr = '0x' + addr;
+  if (!/^0x[0-9a-f]{1,2}$/i.test(addr)) return toast('I²C address: hex, e.g. 0x60', true);
+  const corr = parseFloat($('s5Corr').value.replace(',', '.') || '0');
+  if (!Number.isFinite(corr)) return toast('Check the correction value', true);
+  const data = {
+    s5_enabled: $('s5En').value,
+    s5_address: addr,
+    s5_xtal_hz: mhzToHz($('s5Xtal').value),
+    s5_corr_ppb: Math.round(corr * 1000),
+    s5_min_hz: mhzToHz($('s5Min').value),
+    s5_max_hz: mhzToHz($('s5Max').value)
+  };
+  for (const [k, v] of Object.entries(data)) if (Number.isNaN(v)) return toast('Check the ' + k.replace('s5_', '').replace('_hz', '') + ' value', true);
+  run(post('/save/hardware', data), 'Si5351 settings saved').then(loadConfig);
+});
+
+// The library takes the crystal as nominal * (1 + correction). An output set to F that
+// measures M therefore needs (1 + new) = (M / F) * (1 + old).
+$('s5CalForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!st) return;
+  if (st.selected === 0) return toast('Select CLK0, CLK1 or CLK2 first', true);
+  const measured = parseFloat($('s5Meas').value.replace(',', '.')) * 1e6;
+  const set = cur().freq_hz;
+  if (!Number.isFinite(measured) || Math.abs(measured / set - 1) > 500e-6)
+    return toast(`Enter the reading of ${cur().name} in MHz; it should be close to ${toMHz(set)}`, true);
+  const corrPpb = Math.round(((measured / set) * (1 + st.si5351.corr_ppb / 1e9) - 1) * 1e9);
+  run(post('/save/hardware', {s5_corr_ppb: corrPpb}), `Correction now ${(corrPpb / 1000).toFixed(3)} ppm`)
+    .then(r => { if (r) { $('s5Meas').value = ''; loadConfig(); } });
 });
 
 $('netForm').addEventListener('submit', async e => {
@@ -573,6 +743,7 @@ $('restoreFile').addEventListener('change', e => {
     try {
       fillForms(JSON.parse(r.result));
       $('hwCard').open = true;
+      $('s5Card').open = true;
       $('netCard').open = true;
       toast('Backup loaded into the forms. Review and save each section.');
     } catch (err) { toast('Not a valid backup file', true); }
@@ -590,7 +761,9 @@ $('resetBtn').addEventListener('click', () => {
   run(post('/factory_reset', {confirm: 'YES'}), 'Erased. Rebooting into the set-up hotspot…');
 });
 
-poll();
+// Poll until the WebSocket opens: a connection attempt can hang for seconds (or until
+// a firewall's timeout), and the page would show nothing new meanwhile.
+startPolling();
 connectWs();
 loadConfig();
 })();

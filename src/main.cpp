@@ -1,4 +1,5 @@
-// Si570 signal generator for a 30-pin ESP32-WROOM-32 DevKit.
+// Si570 signal generator for a 30-pin ESP32-WROOM-32 DevKit, with an optional Si5351
+// whose CLK0-CLK2 become outputs 1-3 next to the Si570 (output 0).
 //
 // Control: the web page (http://Si570-SigGen.local/, or the set-up hotspot), the USB
 // serial console ("help"), and optionally a rotary encoder with a 16x2 LCD or 128x64 OLED.
@@ -76,22 +77,34 @@ void runCommand(char* line) {
   char* arg = strtok(nullptr, " ");
   char* arg2 = strtok(nullptr, "");
 
+  const uint8_t sel = controller.ui().selected();
   if (!strcmp(cmd, "help")) {
     Serial.println(
+        "out <0-3|si570|clk0..2>  select output   (f, rf, drive act on the selected output)\n"
         "f <Hz|14.25M|7050k>  set frequency     step <0-8>       1 Hz ... 100 MHz\n"
-        "rf on|off            RF output         ref int|ext      reference\n"
-        "cal                  calibrate (EXT)   save             save as power-on default\n"
+        "rf on|off            RF output         drive 2|4|6|8    Si5351 drive (mA)\n"
+        "ref int|ext          Si570 reference   cal              calibrate (EXT)\n"
+        "save                 save as power-on default\n"
         "status               status JSON       wifi <ssid> [password]  join a network, reboot\n"
         "auth clear           drop admin pw     reset            factory reset\n"
         "reboot");
+  } else if (!strcmp(cmd, "out") && arg) {
+    int out = -1;
+    if (isdigit((unsigned char)arg[0])) out = atoi(arg);
+    for (uint8_t i = 0; i < kMaxOutputs; ++i)
+      if (!strcasecmp(arg, Controller::outputName(i))) out = i;
+    if (out < 0 || out >= kMaxOutputs) Serial.println("usage: out 0-3 | out si570 | out clk0");
+    else report(controller.selectOutput((uint8_t)out));
   } else if (!strcmp(cmd, "f") || !strcmp(cmd, "freq")) {
     uint32_t hz = 0;
-    if (arg && parseFrequency(arg, hz)) report(controller.setFrequency(hz));
+    if (arg && parseFrequency(arg, hz)) report(controller.setFrequency(sel, hz));
     else Serial.println("usage: f 14250000 | f 14.25M | f 7050k");
   } else if (!strcmp(cmd, "step") && arg) {
     report(controller.setStepIndex(atoi(arg)));
   } else if (!strcmp(cmd, "rf") && arg) {
-    report(controller.setRfEnabled(!strcmp(arg, "on")));
+    report(controller.setRfEnabled(sel, !strcmp(arg, "on")));
+  } else if (!strcmp(cmd, "drive") && arg) {
+    report(controller.setDrive(sel, (uint8_t)atoi(arg)));
   } else if (!strcmp(cmd, "ref") && arg) {
     report(controller.setRefMode(!strcmp(arg, "ext") ? RefMode::External : RefMode::Internal));
   } else if (!strcmp(cmd, "cal")) {

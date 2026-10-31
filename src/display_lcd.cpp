@@ -1,8 +1,9 @@
 // 16x2 character LCD layout
 //
-//   row 0   " 14.250 000 MHz"   cursor under the digit being tuned (blinks in STEP mode)
-//   row 1   "TUNE 1kHz    INT"  mode, step, reference status
-//           "STEP <1kHz>"       "REF  <EXT> LOCK"   "RF   <ON>"
+//   row 0   " 14.250 000 MHz"   Si570 only: cursor under the digit being tuned (blinks in STEP mode)
+//           "CK1   7.074 000"   with the Si5351 fitted: output tag, then the frequency
+//   row 1   "TUNE 1kHz    INT"  mode, step, reference status (Si570) or ON/OFF (Si5351)
+//           "STEP <1kHz>"   "OUT  <CK1> 8mA"   "REF  <EXT> LOCK"   "RF   <ON>"
 #include <Wire.h>  // hd44780 needs Wire declared before its headers
 #include <hd44780.h>
 #include <hd44780ioClass/hd44780_I2Cexp.h>
@@ -18,9 +19,11 @@ namespace {
 constexpr int kCols = 16;
 constexpr int kFreqWidth = 12;  // "1417.500 000"; " MHz" follows
 
-const char* refShort(const DisplayModel& m) {
-  if (!m.hasRef) return "";
-  return m.ref == RefMode::Internal ? "INT" : refStatusLabel(m.refStatus);
+// Right-hand side of the TUNE line: reference status for the Si570, else RF on/off.
+const char* tuneStatus(const DisplayModel& m) {
+  if (m.hasRef) return m.ref == RefMode::Internal ? "INT" : refStatusLabel(m.refStatus);
+  if (m.hasRf) return m.rfOn ? "ON" : "OFF";
+  return "";
 }
 
 class LcdDisplay : public Display {
@@ -47,15 +50,25 @@ class LcdDisplay : public Display {
     char freq[16];
     const size_t len = formatFrequency(freq, sizeof freq, m.freqHz);
     char row[kCols + 1];
-    snprintf(row, sizeof row, "%*.12s MHz", kFreqWidth, freq);
+    const bool tagged = m.outputCount > 1;
+    if (tagged)
+      snprintf(row, sizeof row, "%-3.3s%13.12s", outputTag(m.output), freq);
+    else
+      snprintf(row, sizeof row, "%*.12s MHz", kFreqWidth, freq);
     writeRow(0, row);
 
     if (m.message[0] != '\0') {
       snprintf(row, sizeof row, "%.16s", m.message);
     } else {
       switch (m.mode) {
-        case Mode::Tune: snprintf(row, sizeof row, "TUNE %-6s %4s", stepLabel(m.stepHz), refShort(m)); break;
+        case Mode::Tune: snprintf(row, sizeof row, "TUNE %-6s %4s", stepLabel(m.stepHz), tuneStatus(m)); break;
         case Mode::Step: snprintf(row, sizeof row, "STEP <%s>", stepLabel(m.stepHz)); break;
+        case Mode::Out:
+          if (m.driveMa)
+            snprintf(row, sizeof row, "OUT  <%s> %umA", outputTag(m.output), m.driveMa);
+          else
+            snprintf(row, sizeof row, "OUT  <%s>", outputTag(m.output));
+          break;
         case Mode::Ref:
           snprintf(row, sizeof row, "REF  <%s> %s", m.ref == RefMode::External ? "EXT" : "INT",
                    m.ref == RefMode::External ? refStatusLabel(m.refStatus) : "");
@@ -68,7 +81,7 @@ class LcdDisplay : public Display {
     const int idx = digitIndexForDecade(freq, len, decadeOf(m.stepHz));
     const bool showCursor = (m.mode == Mode::Tune || m.mode == Mode::Step) && idx >= 0;
     if (showCursor) {
-      lcd_.setCursor(kFreqWidth - (int)len + idx, 0);
+      lcd_.setCursor((tagged ? kCols : kFreqWidth) - (int)len + idx, 0);
       lcd_.cursor();
       if (m.mode == Mode::Step) lcd_.blink(); else lcd_.noBlink();
     } else {

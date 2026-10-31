@@ -55,6 +55,8 @@ void WebPortal::begin(Controller& ctl, Net& net, const String& adminPassword, Ev
   server_.on("/api/step", HTTP_POST, [this]() { handleStep(); });
   server_.on("/api/ref", HTTP_POST, [this]() { handleRef(); });
   server_.on("/api/rf", HTTP_POST, [this]() { handleRf(); });
+  server_.on("/api/output", HTTP_POST, [this]() { handleOutput(); });
+  server_.on("/api/drive", HTTP_POST, [this]() { handleDrive(); });
   server_.on("/api/calibrate", HTTP_POST, [this]() {
     if (requireAdmin()) sendResult(ctl_->calibrate());
   });
@@ -101,16 +103,19 @@ String WebPortal::statusJson() const {
   const RefController& r = ctl_->ref();
   const HardwareConfig& hw = ctl_->hardware();
 
+  const ClockGen& c = ctl_->clock();
+
   String j;
-  j.reserve(1100);
+  j.reserve(1900);
   j += "{\"version\":\"";
   j += cfg::kFirmwareVersion;
   j += "\",\"build\":\"";
   j += cfg::kFirmwareBuild;
   j += "\",\"uptime_s\":";
   j += millis() / 1000;
+  // Top-level freq/limits/RF describe the Si570 (output 0), as before the Si5351 existed.
   j += ",\"freq_hz\":";
-  j += ui.frequency();
+  j += ui.frequency(kSi570Output);
   j += ",\"step_index\":";
   j += ui.stepIndex();
   j += ",\"max_step_index\":";
@@ -120,9 +125,36 @@ String WebPortal::statusJson() const {
   j += ",\"max_hz\":";
   j += hw.maxHz;
   j += ",\"has_rf\":";
-  j += b(ctl_->hasRf());
+  j += b(ui.output(kSi570Output).hasRf);
   j += ",\"rf_on\":";
-  j += b(ui.rfOn());
+  j += b(ui.rfOn(kSi570Output));
+  j += ",\"selected\":";
+  j += ui.selected();
+  j += ",\"outputs\":[";
+  for (uint8_t i = 0; i < kMaxOutputs; ++i) {
+    const OutputConfig& oc = ui.output(i);
+    if (i) j += ',';
+    j += "{\"name\":\"";
+    j += Controller::outputName(i);
+    j += "\",\"fitted\":";
+    j += b(oc.fitted);
+    j += ",\"ready\":";
+    j += b(ctl_->outputReady(i));
+    j += ",\"freq_hz\":";
+    j += ui.frequency(i);
+    j += ",\"min_hz\":";
+    j += oc.minHz;
+    j += ",\"max_hz\":";
+    j += oc.maxHz;
+    j += ",\"has_rf\":";
+    j += b(oc.hasRf);
+    j += ",\"rf_on\":";
+    j += b(ui.rfOn(i));
+    j += ",\"drive_ma\":";
+    j += ctl_->driveMa(i);
+    j += '}';
+  }
+  j += ']';
   j += ",\"has_ref\":";
   j += b(ctl_->hasRef());
   j += ",\"ref\":\"";
@@ -151,6 +183,18 @@ String WebPortal::statusJson() const {
   j += b(s.xtalPlausible());
   j += ",\"likely_startup_hz\":";
   j += s.xtalPlausible() ? 0 : s.likelyStartupHz();
+  j += ",\"corr_ppb\":";
+  j += hw.si570CorrPpb;
+  j += "},\"si5351\":{\"enabled\":";
+  j += b(c.enabled());
+  j += ",\"ready\":";
+  j += b(c.ready());
+  j += ",\"address\":";
+  j += c.address();
+  j += ",\"xtal_hz\":";
+  j += c.xtal();
+  j += ",\"corr_ppb\":";
+  j += c.correctionPpb();
   j += "},\"message\":\"";
   j += jsonEsc(ctl_->statusMessage());
   j += "\",\"wifi\":{\"mode\":\"";
@@ -199,15 +243,42 @@ void WebPortal::handleConfig() {
   j += b(hw.oeActiveHigh);
   j += ",\"ref_hz\":";
   j += hw.refHz;
+  j += ",\"si570_corr_ppb\":";
+  j += hw.si570CorrPpb;
+  j += ",\"s5_enabled\":";
+  j += b(hw.s5Enabled);
+  j += ",\"s5_address\":";
+  j += hw.s5Address;
+  j += ",\"s5_xtal_hz\":";
+  j += hw.s5XtalHz;
+  j += ",\"s5_corr_ppb\":";
+  j += hw.s5CorrPpb;
+  j += ",\"s5_min_hz\":";
+  j += hw.s5MinHz;
+  j += ",\"s5_max_hz\":";
+  j += hw.s5MaxHz;
   j += "},\"state\":{\"freq_hz\":";
-  j += ui.frequency();
+  j += ui.frequency(kSi570Output);
   j += ",\"step_index\":";
   j += ui.stepIndex();
   j += ",\"ref\":\"";
   j += ui.ref() == RefMode::External ? "ext" : "int";
   j += "\",\"rf_on\":";
-  j += b(ui.rfOn());
-  j += "}}";
+  j += b(ui.rfOn(kSi570Output));
+  j += ",\"selected\":";
+  j += ui.selected();
+  j += ",\"outputs\":[";
+  for (uint8_t i = 0; i < kMaxOutputs; ++i) {
+    if (i) j += ',';
+    j += "{\"freq_hz\":";
+    j += ui.frequency(i);
+    j += ",\"rf_on\":";
+    j += b(ui.rfOn(i));
+    j += ",\"drive_ma\":";
+    j += ctl_->driveMa(i);
+    j += '}';
+  }
+  j += "]}}";
   if (server_.arg("download") == "1") {
     server_.sendHeader("Content-Disposition",
                        String("attachment; filename=\"si570-siggen-") + net.hostname + ".json\"");
@@ -234,7 +305,8 @@ void WebPortal::handleDiscover() {
   j += cfg::kWsPort;
   j += ",\"ota\":3232},\"endpoints\":{\"page\":\"/\",\"status\":\"/status\",\"config\":\"/config\","
        "\"freq\":\"/api/freq\",\"step\":\"/api/step\",\"ref\":\"/api/ref\",\"rf\":\"/api/rf\","
-       "\"calibrate\":\"/api/calibrate\",\"save\":\"/api/save\",\"update\":\"/update\"}}";
+       "\"output\":\"/api/output\",\"drive\":\"/api/drive\",\"calibrate\":\"/api/calibrate\","
+       "\"save\":\"/api/save\",\"update\":\"/update\"}}";
   sendJson(200, j);
 }
 
@@ -270,6 +342,27 @@ bool WebPortal::argUInt(const char* name, uint32_t& out) {
   return true;
 }
 
+bool WebPortal::argInt(const char* name, int32_t& out) {
+  if (!server_.hasArg(name)) return false;
+  const String v = server_.arg(name);
+  if (v.length() == 0) return false;
+  char* end = nullptr;
+  const long long n = strtoll(v.c_str(), &end, 10);
+  if (*end != '\0' || n < INT32_MIN || n > INT32_MAX) return false;
+  out = (int32_t)n;
+  return true;
+}
+
+// "output" is optional and defaults to the Si570 (output 0), as before the Si5351 existed.
+bool WebPortal::argOutput(uint8_t& out) {
+  out = kSi570Output;
+  if (!server_.hasArg("output")) return true;
+  uint32_t v = 0;
+  if (!argUInt("output", v) || v >= kMaxOutputs) return false;
+  out = (uint8_t)v;
+  return true;
+}
+
 void WebPortal::sendJson(int code, const String& body) {
   server_.sendHeader("Cache-Control", "no-store");
   server_.send(code, "application/json", body);
@@ -288,7 +381,8 @@ void WebPortal::sendResult(CmdResult r) {
   switch (r) {
     case CmdResult::OutOfRange:
     case CmdResult::Unsupported: code = 400; break;
-    case CmdResult::Busy: code = 409; break;
+    case CmdResult::Busy:
+    case CmdResult::PllInUse: code = 409; break;
     case CmdResult::NotReady: code = 503; break;
     default: break;
   }
@@ -308,8 +402,10 @@ void WebPortal::handleStatus() { sendJson(200, statusJson()); }
 void WebPortal::handleFreq() {
   if (!requireAdmin()) return;
   uint32_t hz = 0;
+  uint8_t output = 0;
   if (!argUInt("hz", hz)) return sendError(400, "need hz=<integer Hz>");
-  sendResult(ctl_->setFrequency(hz));
+  if (!argOutput(output)) return sendError(400, "output must be 0-3");
+  sendResult(ctl_->setFrequency(output, hz));
 }
 
 void WebPortal::handleStep() {
@@ -329,8 +425,25 @@ void WebPortal::handleRef() {
 void WebPortal::handleRf() {
   if (!requireAdmin()) return;
   const String on = server_.arg("on");
+  uint8_t output = 0;
   if (on != "1" && on != "0") return sendError(400, "need on=1|0");
-  sendResult(ctl_->setRfEnabled(on == "1"));
+  if (!argOutput(output)) return sendError(400, "output must be 0-3");
+  sendResult(ctl_->setRfEnabled(output, on == "1"));
+}
+
+void WebPortal::handleOutput() {
+  if (!requireAdmin()) return;
+  uint32_t v = 0;
+  if (!argUInt("output", v) || v >= kMaxOutputs) return sendError(400, "need output=0-3");
+  sendResult(ctl_->selectOutput((uint8_t)v));
+}
+
+void WebPortal::handleDrive() {
+  if (!requireAdmin()) return;
+  uint32_t output = 0, ma = 0;
+  if (!argUInt("output", output) || output < 1 || output >= kMaxOutputs) return sendError(400, "need output=1-3");
+  if (!argUInt("ma", ma) || !ClockGen::validDrive((uint8_t)ma) || ma > 8) return sendError(400, "need ma=2|4|6|8");
+  sendResult(ctl_->setDrive((uint8_t)output, (uint8_t)ma));
 }
 
 void WebPortal::handleSaveHardware() {
@@ -345,6 +458,16 @@ void WebPortal::handleSaveHardware() {
   if (argUInt("max_hz", v)) hw.maxHz = v;
   if (argUInt("oe_active_high", v)) hw.oeActiveHigh = v != 0;
   if (argUInt("ref_hz", v)) hw.refHz = v;
+  if (argUInt("s5_enabled", v)) hw.s5Enabled = v != 0;
+  if (argUInt("s5_address", v)) hw.s5Address = v > 0xFF ? 0 : (uint8_t)v;
+  if (argUInt("s5_xtal_hz", v)) hw.s5XtalHz = v;
+  if (argUInt("s5_min_hz", v)) hw.s5MinHz = v;
+  if (argUInt("s5_max_hz", v)) hw.s5MaxHz = v;
+  int32_t corr = 0;
+  if (server_.hasArg("si570_corr_ppb") && !argInt("si570_corr_ppb", corr)) return sendError(400, "si570_corr_ppb: integer ppb");
+  if (server_.hasArg("si570_corr_ppb")) hw.si570CorrPpb = corr;
+  if (server_.hasArg("s5_corr_ppb") && !argInt("s5_corr_ppb", corr)) return sendError(400, "s5_corr_ppb: integer ppb");
+  if (server_.hasArg("s5_corr_ppb")) hw.s5CorrPpb = corr;
   if (const char* why = validateHardwareConfig(hw)) return sendError(400, why);
   sendResult(ctl_->applyHardware(hw));
 }

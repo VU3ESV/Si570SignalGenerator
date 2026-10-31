@@ -25,14 +25,21 @@ void RefController::setMode(RefMode mode) {
 
   if (mode_ == RefMode::Internal) {
     status_ = RefStatus::Off;
-    synth_.setXtal(synth_.factoryXtal());
+    synth_.setXtal(intXtal());
   } else {
     // Start from the last external calibration (kept across power cycles) until the
     // first measurement completes.
     status_ = RefStatus::Hold;
-    synth_.setXtal(extXtal_ != 0 ? extXtal_ : synth_.factoryXtal());
+    synth_.setXtal(extXtal_ != 0 ? extXtal_ : intXtal());
   }
 }
+
+void RefController::setIntCorrection(int32_t ppb) {
+  intCorrPpb_ = ppb;
+  if (mode_ == RefMode::Internal) synth_.setXtal(intXtal());  // no-op until the Si570 is ready
+}
+
+uint32_t RefController::intXtal() const { return applyPpb(synth_.factoryXtal(), intCorrPpb_); }
 
 void RefController::service(uint32_t nowMs) {
   if (mode_ != RefMode::External || !synth_.ready()) return;

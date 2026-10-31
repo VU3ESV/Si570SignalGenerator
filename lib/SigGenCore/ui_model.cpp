@@ -3,26 +3,56 @@
 const uint32_t UiModel::kSteps[UiModel::kStepCount] = {1,      10,      100,      1000,     10000,
                                                        100000, 1000000, 10000000, 100000000};
 
+namespace {
+constexpr uint8_t kModeCount = 5;
+}
+
 void UiModel::configure(const UiConfig& cfg) {
   cfg_ = cfg;
-  freq_ = clampFrequency(freq_);
-  if (stepIdx_ > maxStepIndex()) stepIdx_ = maxStepIndex();
+  for (uint8_t i = 0; i < kMaxOutputs; ++i) outputs_[i].freqHz = clampFrequency(i, outputs_[i].freqHz);
+  if (!cfg_.outputs[selected_].fitted) {
+    for (uint8_t i = 0; i < kMaxOutputs; ++i)
+      if (cfg_.outputs[i].fitted) {
+        selected_ = i;
+        break;
+      }
+  }
+  clampStep();
   if (!cfg_.hasRef) ref_ = RefMode::Internal;
   if (!available(mode_)) mode_ = Mode::Tune;
 }
 
-void UiModel::restore(uint32_t freqHz, uint8_t stepIndex, RefMode ref, bool rfOn) {
-  freq_ = clampFrequency(freqHz);
-  stepIdx_ = stepIndex > maxStepIndex() ? maxStepIndex() : stepIndex;
+void UiModel::restore(const OutputState (&outputs)[kMaxOutputs], uint8_t selected, uint8_t stepIndex, RefMode ref) {
+  for (uint8_t i = 0; i < kMaxOutputs; ++i) {
+    outputs_[i].freqHz = clampFrequency(i, outputs[i].freqHz);
+    outputs_[i].rfOn = outputs[i].rfOn;
+  }
+  if (selected < kMaxOutputs && cfg_.outputs[selected].fitted) selected_ = selected;
+  stepIdx_ = stepIndex;
+  clampStep();
   ref_ = cfg_.hasRef ? ref : RefMode::Internal;
-  rfOn_ = rfOn;
   mode_ = Mode::Tune;
 }
 
-bool UiModel::setFrequency(uint32_t hz) {
-  const uint32_t f = clampFrequency(hz);
-  if (f == freq_) return false;
-  freq_ = f;
+bool UiModel::setFrequency(uint8_t output, uint32_t hz) {
+  if (output >= kMaxOutputs) return false;
+  const uint32_t f = clampFrequency(output, hz);
+  if (f == outputs_[output].freqHz) return false;
+  outputs_[output].freqHz = f;
+  return true;
+}
+
+bool UiModel::setRfOn(uint8_t output, bool on) {
+  if (output >= kMaxOutputs || on == outputs_[output].rfOn) return false;
+  outputs_[output].rfOn = on;
+  return true;
+}
+
+bool UiModel::select(uint8_t output) {
+  if (output >= kMaxOutputs || !cfg_.outputs[output].fitted || output == selected_) return false;
+  selected_ = output;
+  clampStep();
+  if (!available(mode_)) mode_ = Mode::Tune;
   return true;
 }
 
@@ -40,26 +70,32 @@ bool UiModel::setRef(RefMode ref) {
   return true;
 }
 
-bool UiModel::setRfOn(bool on) {
-  if (on == rfOn_) return false;
-  rfOn_ = on;
-  return true;
-}
-
 UiAction UiModel::rotate(int clicks, uint32_t nowMs) {
   if (clicks == 0) return UiAction::None;
   lastInputMs_ = nowMs;
+  OutputState& out = outputs_[selected_];
   switch (mode_) {
     case Mode::Tune: {
-      const uint32_t f = clampFrequency((int64_t)freq_ + (int64_t)clicks * step());
-      if (f == freq_) return UiAction::None;
-      freq_ = f;
+      const uint32_t f = clampFrequency(selected_, (int64_t)out.freqHz + (int64_t)clicks * step());
+      if (f == out.freqHz) return UiAction::None;
+      out.freqHz = f;
       return UiAction::FrequencyChanged;
     }
     case Mode::Step: {
       const int idx = (int)stepIdx_ + clicks;
       stepIdx_ = idx < 0 ? 0 : (idx > maxStepIndex() ? maxStepIndex() : (uint8_t)idx);
       return UiAction::None;
+    }
+    case Mode::Out: {
+      // One fitted output per click, wrapping round.
+      uint8_t next = selected_;
+      const int dir = clicks > 0 ? 1 : -1;
+      for (int n = clicks > 0 ? clicks : -clicks; n > 0; --n) {
+        do {
+          next = (uint8_t)((next + kMaxOutputs + dir) % kMaxOutputs);
+        } while (!cfg_.outputs[next].fitted);
+      }
+      return select(next) ? UiAction::OutputChanged : UiAction::None;
     }
     case Mode::Ref: {
       const RefMode want = clicks > 0 ? RefMode::External : RefMode::Internal;
@@ -69,8 +105,8 @@ UiAction UiModel::rotate(int clicks, uint32_t nowMs) {
     }
     case Mode::Rf: {
       const bool want = clicks > 0;
-      if (want == rfOn_) return UiAction::None;
-      rfOn_ = want;
+      if (want == out.rfOn) return UiAction::None;
+      out.rfOn = want;
       return UiAction::RfChanged;
     }
   }
@@ -81,7 +117,7 @@ UiAction UiModel::shortPress(uint32_t nowMs) {
   lastInputMs_ = nowMs;
   Mode next = mode_;
   do {
-    next = (Mode)(((uint8_t)next + 1) % 4);
+    next = (Mode)(((uint8_t)next + 1) % kModeCount);
   } while (!available(next));
   mode_ = next;
   return UiAction::None;
@@ -102,29 +138,43 @@ const char* UiModel::modeName(Mode m) {
   switch (m) {
     case Mode::Tune: return "TUNE";
     case Mode::Step: return "STEP";
+    case Mode::Out: return "OUT";
     case Mode::Ref: return "REF";
     case Mode::Rf: return "RF";
   }
   return "?";
 }
 
+uint8_t UiModel::fittedCount() const {
+  uint8_t n = 0;
+  for (const OutputConfig& o : cfg_.outputs) n += o.fitted ? 1 : 0;
+  return n;
+}
+
 uint8_t UiModel::maxStepIndex() const {
-  const uint32_t span = cfg_.maxHz > cfg_.minHz ? cfg_.maxHz - cfg_.minHz : 0;
+  const OutputConfig& o = cfg_.outputs[selected_];
+  const uint32_t span = o.maxHz > o.minHz ? o.maxHz - o.minHz : 0;
   uint8_t idx = 0;
   while (idx + 1 < kStepCount && kSteps[idx + 1] <= span) ++idx;
   return idx;
 }
 
-uint32_t UiModel::clampFrequency(int64_t hz) const {
-  if (hz < (int64_t)cfg_.minHz) return cfg_.minHz;
-  if (hz > (int64_t)cfg_.maxHz) return cfg_.maxHz;
+void UiModel::clampStep() {
+  if (stepIdx_ > maxStepIndex()) stepIdx_ = maxStepIndex();
+}
+
+uint32_t UiModel::clampFrequency(uint8_t output, int64_t hz) const {
+  const OutputConfig& o = cfg_.outputs[output];
+  if (hz < (int64_t)o.minHz) return o.minHz;
+  if (hz > (int64_t)o.maxHz) return o.maxHz;
   return (uint32_t)hz;
 }
 
 bool UiModel::available(Mode m) const {
   switch (m) {
-    case Mode::Ref: return cfg_.hasRef;
-    case Mode::Rf: return cfg_.hasRf;
+    case Mode::Out: return fittedCount() > 1;
+    case Mode::Ref: return cfg_.hasRef && selected_ == cfg_.refOutput;
+    case Mode::Rf: return cfg_.outputs[selected_].hasRf;
     default: return true;
   }
 }

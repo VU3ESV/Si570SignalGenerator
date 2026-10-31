@@ -31,14 +31,39 @@ void clearNamespace(const char* ns) {
 
 // ---------------------------------------------------------------- operating state
 
+// Keys per output: the Si570 keeps the original "freq"/"rf" so older saves still load;
+// the Si5351 outputs use f1..f3, r1..r3 and d1..d3 (drive mA).
+namespace {
+struct OutputKeys {
+  char freq[6], rf[6], drive[6];
+};
+OutputKeys outputKeys(uint8_t i) {
+  OutputKeys k;
+  if (i == kSi570Output) {
+    snprintf(k.freq, sizeof k.freq, "freq");
+    snprintf(k.rf, sizeof k.rf, "rf");
+  } else {
+    snprintf(k.freq, sizeof k.freq, "f%u", i);
+    snprintf(k.rf, sizeof k.rf, "r%u", i);
+  }
+  snprintf(k.drive, sizeof k.drive, "d%u", i);
+  return k;
+}
+}  // namespace
+
 StoredSettings loadSettings() {
   StoredSettings s;
   Preferences p;
   if (!hasNamespace(kStateNs) || !p.begin(kStateNs, true)) return s;  // nothing saved yet
-  s.freqHz = p.getUInt("freq", s.freqHz);
+  for (uint8_t i = 0; i < kMaxOutputs; ++i) {
+    const OutputKeys k = outputKeys(i);
+    s.outputs[i].freqHz = p.getUInt(k.freq, s.outputs[i].freqHz);
+    s.outputs[i].rfOn = p.getBool(k.rf, s.outputs[i].rfOn);
+    if (i != kSi570Output) s.driveMa[i] = p.getUChar(k.drive, s.driveMa[i]);
+  }
+  s.selected = p.getUChar("sel", s.selected);
   s.stepIndex = p.getUChar("step", s.stepIndex);
   s.ref = p.getUChar("ref", 0) == 1 ? RefMode::External : RefMode::Internal;
-  s.rfOn = p.getBool("rf", s.rfOn);
   s.extXtalHz = p.getUInt("xtal", 0);
   p.end();
   return s;
@@ -47,10 +72,15 @@ StoredSettings loadSettings() {
 void saveSettings(const StoredSettings& s) {
   Preferences p;
   if (!p.begin(kStateNs, false)) return;
-  p.putUInt("freq", s.freqHz);
+  for (uint8_t i = 0; i < kMaxOutputs; ++i) {
+    const OutputKeys k = outputKeys(i);
+    p.putUInt(k.freq, s.outputs[i].freqHz);
+    p.putBool(k.rf, s.outputs[i].rfOn);
+    if (i != kSi570Output) p.putUChar(k.drive, s.driveMa[i]);
+  }
+  p.putUChar("sel", s.selected);
   p.putUChar("step", s.stepIndex);
   p.putUChar("ref", s.ref == RefMode::External ? 1 : 0);
-  p.putBool("rf", s.rfOn);
   if (s.extXtalHz != 0) p.putUInt("xtal", s.extXtalHz);
   p.end();
 }
@@ -78,6 +108,13 @@ HardwareConfig loadHardwareConfig() {
   stored.maxHz = p.getUInt("max", hw.maxHz);
   stored.oeActiveHigh = p.getBool("oehigh", hw.oeActiveHigh);
   stored.refHz = p.getUInt("ref", hw.refHz);
+  stored.si570CorrPpb = p.getInt("corr", hw.si570CorrPpb);
+  stored.s5Enabled = p.getBool("s5en", hw.s5Enabled);
+  stored.s5Address = p.getUChar("s5addr", hw.s5Address);
+  stored.s5XtalHz = p.getUInt("s5xtal", hw.s5XtalHz);
+  stored.s5CorrPpb = p.getInt("s5corr", hw.s5CorrPpb);
+  stored.s5MinHz = p.getUInt("s5min", hw.s5MinHz);
+  stored.s5MaxHz = p.getUInt("s5max", hw.s5MaxHz);
   p.end();
   // Never boot into a configuration the web page would have refused.
   return validateHardwareConfig(stored) == nullptr ? stored : hw;
@@ -93,6 +130,13 @@ void saveHardwareConfig(const HardwareConfig& hw) {
   p.putUInt("max", hw.maxHz);
   p.putBool("oehigh", hw.oeActiveHigh);
   p.putUInt("ref", hw.refHz);
+  p.putInt("corr", hw.si570CorrPpb);
+  p.putBool("s5en", hw.s5Enabled);
+  p.putUChar("s5addr", hw.s5Address);
+  p.putUInt("s5xtal", hw.s5XtalHz);
+  p.putInt("s5corr", hw.s5CorrPpb);
+  p.putUInt("s5min", hw.s5MinHz);
+  p.putUInt("s5max", hw.s5MaxHz);
   p.end();
 }
 
@@ -104,6 +148,14 @@ const char* validateHardwareConfig(const HardwareConfig& hw) {
   if (hw.maxHz > 1417500000) return "maximum frequency must be at most 1417.5 MHz";
   if (hw.minHz >= hw.maxHz) return "minimum must be below maximum";
   if (hw.refHz < 1000000 || hw.refHz > cfg::kTrackMaxHz) return "reference must be 1-40 MHz";
+  if (hw.si570CorrPpb < -500000 || hw.si570CorrPpb > 500000) return "Si570 correction must be within +/-500 ppm";
+  if (hw.s5Address < 0x08 || hw.s5Address > 0x77) return "Si5351 I2C address must be 0x08-0x77";
+  if (hw.s5Enabled && hw.s5Address == hw.si570Address) return "Si5351 and Si570 need different I2C addresses";
+  if (hw.s5XtalHz < 10000000 || hw.s5XtalHz > 40000000) return "Si5351 crystal must be 10-40 MHz (normally 25 or 27)";
+  if (hw.s5CorrPpb < -500000 || hw.s5CorrPpb > 500000) return "Si5351 correction must be within +/-500 ppm";
+  if (hw.s5MinHz < 4000) return "Si5351 minimum frequency must be at least 4 kHz";
+  if (hw.s5MaxHz > 225000000) return "Si5351 maximum frequency must be at most 225 MHz";
+  if (hw.s5MinHz >= hw.s5MaxHz) return "Si5351 minimum must be below maximum";
   return nullptr;
 }
 

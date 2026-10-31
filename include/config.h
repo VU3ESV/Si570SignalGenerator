@@ -11,7 +11,7 @@ namespace cfg {
 
 // ---------------------------------------------------------------- firmware / network
 // Bump on every release; shown on the web page, in /status and in mDNS.
-constexpr const char* kFirmwareVersion = "0.2.0";
+constexpr const char* kFirmwareVersion = "0.3.0";
 extern const char kFirmwareBuild[];  // defined once in main.cpp so every file reports the same stamp
 constexpr const char* kDefaultHostname = "Si570-SigGen";  // http://Si570-SigGen.local/
 constexpr const char* kApSsidPrefix = "Si570-Setup-";     // set-up hotspot when no Wi-Fi is configured
@@ -32,6 +32,20 @@ constexpr uint8_t kSi570RegBase = 7;  // 2nd option letter A/B (±50/±20 ppm): 
 // 280/945/1417.5 MHz depending on speed grade (945-970 and 1134-1212.5 MHz can't be made).
 constexpr uint32_t kMinHz = 10000000;
 constexpr uint32_t kMaxHz = 160000000;
+
+// ---------------------------------------------------------------- Si5351 (defaults)
+// Optional second synthesiser on the same I2C bus, driven by Etherkit's Si5351Arduino.
+// Its CLK0-CLK2 appear as outputs 1-3 next to the Si570 (output 0). Editable from the web
+// page (Settings > Si5351 hardware), including turning it off when it isn't fitted.
+constexpr bool kSi5351Enabled = true;
+constexpr uint8_t kSi5351Address = 0x60;
+constexpr uint32_t kSi5351XtalHz = 25000000;  // 25 or 27 MHz: see the crystal on the module
+constexpr uint8_t kSi5351CrystalLoadPf = 8;   // 6, 8 or 10; the ppm correction absorbs the rest
+// The library covers 4 kHz-225 MHz; the datasheet guarantees up to 200 MHz. Only one of
+// CLK0/CLK1 and CLK2 (each on its own PLL) can be above 100 MHz at a time.
+constexpr uint32_t kSi5351MinHz = 8000;
+constexpr uint32_t kSi5351MaxHz = 160000000;
+constexpr uint8_t kSi5351DefaultDriveMa = 8;  // 2, 4, 6 or 8 mA: about +3 to +10 dBm into 50 ohms
 
 // ---------------------------------------------------------------- pins (30-pin ESP32-WROOM-32 DevKit)
 // Every pin below is on the 30-pin header. Avoid GPIO12 for new wiring: pulled high at

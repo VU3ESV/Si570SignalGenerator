@@ -9,6 +9,9 @@
 #include <memory>
 
 struct DisplayModel {
+  uint8_t output = 0;       // selected output: 0 = Si570, 1-3 = Si5351 CLK0-CLK2
+  uint8_t outputCount = 1;  // outputs fitted; the tag and OUT mode only matter above 1
+  uint8_t driveMa = 0;      // Si5351 outputs only
   uint32_t freqHz = 0;
   uint32_t stepHz = 0;
   Mode mode = Mode::Tune;
@@ -33,6 +36,9 @@ class Display {
   // The Si570 shares the bus, so the slowest device sets the clock.
   virtual uint32_t i2cClockHz() const { return 400000; }
 };
+
+// Short output tag for the displays: "570", "CK0", "CK1", "CK2".
+const char* outputTag(uint8_t output);
 
 // Never returns null: falls back to a headless display (serial log only).
 std::unique_ptr<Display> createDisplay();

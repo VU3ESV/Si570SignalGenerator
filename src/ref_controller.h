@@ -25,6 +25,10 @@ class RefController {
   bool available() const { return available_; }
   void setRefHz(uint32_t hz) { fll_.refHz = hz; }
   void clearExtXtal() { extXtal_ = 0; }  // e.g. a different Si570 was configured
+  // Crystal correction for the internal reference (ppb vs the factory-derived value).
+  // Applied at once in INT mode; EXT mode also starts from it before its first measurement.
+  void setIntCorrection(int32_t ppb);
+  uint32_t intXtal() const;  // factory-derived crystal with that correction
 
   // Selects which crystal value the Si570 maths uses. Call again after re-initialising the Si570.
   void setMode(RefMode mode);
@@ -52,6 +56,7 @@ class RefController {
   RefStatus status_ = RefStatus::Off;
   double errorPpm_ = 0;
   uint32_t extXtal_ = 0;
+  int32_t intCorrPpb_ = 0;
 
   bool gateOpen_ = false;
   uint32_t gateStartMs_ = 0;

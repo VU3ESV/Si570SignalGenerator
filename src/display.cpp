@@ -6,9 +6,14 @@
 #include "config.h"
 
 bool DisplayModel::operator==(const DisplayModel& o) const {
-  return freqHz == o.freqHz && stepHz == o.stepHz && mode == o.mode && hasRef == o.hasRef && ref == o.ref &&
+  return output == o.output && outputCount == o.outputCount && driveMa == o.driveMa && freqHz == o.freqHz && stepHz == o.stepHz && mode == o.mode && hasRef == o.hasRef && ref == o.ref &&
          refStatus == o.refStatus && refErrorCentiPpm == o.refErrorCentiPpm && hasRf == o.hasRf &&
          rfOn == o.rfOn && strcmp(message, o.message) == 0;
+}
+
+const char* outputTag(uint8_t output) {
+  static const char* const kTags[] = {"570", "CK0", "CK1", "CK2"};
+  return output < sizeof kTags / sizeof kTags[0] ? kTags[output] : "?";
 }
 
 namespace {

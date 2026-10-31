@@ -40,3 +40,14 @@ const char* refStatusLabel(RefStatus s) {
   }
   return "?";
 }
+
+uint32_t applyPpb(uint32_t hz, int32_t ppb) {
+  const int64_t delta = ((int64_t)hz * ppb + (ppb >= 0 ? 500000000LL : -500000000LL)) / 1000000000LL;
+  return (uint32_t)((int64_t)hz + delta);
+}
+
+int32_t correctionFromMeasurement(uint32_t setHz, double measuredHz, int32_t oldPpb) {
+  // The output scales with the true crystal: measured / set = true / assumed, and
+  // assumed = nominal * (1 + old), so true = nominal * (measured / set) * (1 + old).
+  return (int32_t)lround((measuredHz / setHz * (1.0 + oldPpb * 1e-9) - 1.0) * 1e9);
+}
