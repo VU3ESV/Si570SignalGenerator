@@ -1,9 +1,9 @@
 // 128x64 OLED layout
 //
-//   "EXT LOCK +0.02ppm"          reference status (6x10 font)
+//   "EXT LOCK +0.02ppm"          Si570: reference status; Si5351: "Si5351 CLK1  8mA" (6x10 font)
 //          "14.250 000"          frequency (10x20 font), digit being tuned underlined/boxed
 //   "Step 1kHz         MHz"      or a message
-//   [TUNE] STEP  REF  RF:ON      modes, current one inverted
+//   [TUNE]          CK1 RF:ON    current mode inverted; selected output and its RF state
 #include <U8g2lib.h>
 #include <stdio.h>
 #include <string.h>
@@ -49,8 +49,10 @@ class OledDisplay : public Display {
     g_.clearBuffer();
 
     g_.setFont(u8g2_font_6x10_mf);
-    if (!m.hasRef)
-      snprintf(text, sizeof text, "Si570 signal gen");
+    if (m.output != 0)
+      snprintf(text, sizeof text, "Si5351 CLK%u  %umA", m.output - 1, m.driveMa);
+    else if (!m.hasRef)
+      snprintf(text, sizeof text, m.outputCount > 1 ? "Si570" : "Si570 signal gen");
     else if (m.ref == RefMode::Internal)
       snprintf(text, sizeof text, "REF INT");
     else if (m.refStatus == RefStatus::Tracking || m.refStatus == RefStatus::Locked)
@@ -82,20 +84,16 @@ class OledDisplay : public Display {
       g_.drawStr(kWidth - 3 * kSmallGlyph, 46, "MHz");
     }
 
-    static const Mode kModes[] = {Mode::Tune, Mode::Step, Mode::Ref, Mode::Rf};
-    int x = 0;
-    for (Mode mode : kModes) {
-      if ((mode == Mode::Ref && !m.hasRef) || (mode == Mode::Rf && !m.hasRf)) continue;
-      const char* label = mode == Mode::Rf ? (m.rfOn ? "RF:ON" : "RF:OFF") : UiModel::modeName(mode);
-      const int w = (int)strlen(label) * kSmallGlyph + 4;
-      if (mode == m.mode) {
-        g_.drawBox(x, 54, w, 10);
-        g_.setDrawColor(0);
-      }
-      g_.drawStr(x + 2, 63, label);
-      g_.setDrawColor(1);
-      x += w + 2;
-    }
+    // Five modes don't fit across 128 px, so: the current one, then what it acts on.
+    const char* modeLabel = UiModel::modeName(m.mode);
+    const int w = (int)strlen(modeLabel) * kSmallGlyph + 4;
+    g_.drawBox(0, 54, w, 10);
+    g_.setDrawColor(0);
+    g_.drawStr(2, 63, modeLabel);
+    g_.setDrawColor(1);
+    snprintf(text, sizeof text, "%s%s%s", m.outputCount > 1 ? outputTag(m.output) : "",
+             m.outputCount > 1 && m.hasRf ? " " : "", m.hasRf ? (m.rfOn ? "RF:ON" : "RF:OFF") : "");
+    g_.drawStr(kWidth - (int)strlen(text) * kSmallGlyph, 63, text);
 
     g_.sendBuffer();
   }

@@ -45,3 +45,12 @@ FllResult fllEvaluate(const FllConfig& cfg, const FllSample& s, uint32_t program
 
 // Four characters max, for the 16x2 LCD.
 const char* refStatusLabel(RefStatus s);
+
+// hz * (1 + ppb / 1e9), rounded: a crystal frequency with a correction in parts per
+// billion applied (+ = the crystal runs fast).
+uint32_t applyPpb(uint32_t hz, int32_t ppb);
+
+// The correction that makes an output read right: it was set to setHz with the crystal
+// corrected by oldPpb, and a trusted counter measured measuredHz. Used with the internal
+// reference; the same formula as the web page's Si5351 helper.
+int32_t correctionFromMeasurement(uint32_t setHz, double measuredHz, int32_t oldPpb);

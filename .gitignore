@@ -6,3 +6,4 @@
 include/build_stamp.h
 # Local reference documents (third-party datasheets/articles), not redistributed
 .suport/
+.playwright-mcp/

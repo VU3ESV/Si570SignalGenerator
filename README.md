@@ -1,6 +1,7 @@
 # Si570 Signal Generator (ESP32-WROOM-32)
 
-A 10–160 MHz signal generator (wider with LVDS/LVPECL Si570 grades) built from:
+A 10–160 MHz signal generator (wider with LVDS/LVPECL Si570 grades), with up to three more
+outputs from an optional Si5351, built from:
 
 - a Skyworks/Silicon Labs **Si570** programmable oscillator, driven by KO7M's Si570
   driver (vendored and fixed, see [lib/Si570/README.md](lib/Si570/README.md))
@@ -9,15 +10,18 @@ A 10–160 MHz signal generator (wider with LVDS/LVPECL Si570 grades) built from
 - optional: a **16x2 LCD (PCF8574 backpack)** *or* a **0.96" 128x64 OLED**, detected at
   boot, and a **rotary encoder with push switch**
 - optional: an **external 10 MHz reference**, selectable against the Si570's internal crystal
+- optional: a **Si5351** clock generator on the same I²C bus, whose **CLK0–CLK2** become
+  three more outputs (8 kHz–160 MHz), driven by Etherkit's
+  [Si5351Arduino](https://github.com/etherkit/Si5351Arduino) library
 
 The encoder and display can be added later. Without them the generator runs headless,
 controlled from the web page or the USB serial console, and no rebuild is needed when
 you plug them in.
 
-> Status: the firmware builds, the host unit tests pass, and the web page was exercised
-> in a browser against a mock of the device API. On an ESP32 it boots, starts the set-up
-> hotspot, serves the page and answers the serial console. **Talking to a real Si570,
-> the external reference loop and OTA have not been tested on hardware yet.**
+> Status: tested on an ESP32 with a Si570 CAC000141: web page, API, Digest auth, OTA
+> updates and Si570 tuning (checked with a counter) work. **Not yet tested on hardware:**
+> the Si5351 outputs (the web page was tested against a simulated device), the external
+> reference loop, the encoder and the displays.
 
 ## First test: ESP32 + Si570 only
 
@@ -43,10 +47,16 @@ You can do the same over USB without Wi-Fi: open `pio device monitor` and type `
 The page shows the frequency on an LCD-style display, updated live (WebSocket on port
 81, falling back to polling if that's blocked).
 
+- **Outputs** (with a Si5351 fitted): a button per output (Si570, CLK0, CLK1, CLK2)
+  showing its frequency and RF state. The selected output is the one the display, the
+  tuning controls and RF/drive act on, here and on the LCD/encoder alike.
 - **Tune** by scrolling on a digit, tapping its upper or lower half, using **−/+**
   (hold to repeat) with the step selector, the arrow keys, or typing a frequency.
-- **Output and reference:** RF on/off (needs OE wired), INT/EXT reference with lock
-  status and crystal correction, *Calibrate now*, and *Save as power-on default*.
+- **Output and reference:** RF on/off for the selected output (the Si570 needs OE wired),
+  Si5351 drive strength (2–8 mA), the Si570's INT/EXT reference with lock status and
+  crystal correction, *Calibrate now*, and *Save as power-on default* (all outputs).
+- **Si5351 hardware:** fitted yes/no, I²C address, crystal (25 or 27 MHz), ppm
+  correction and frequency limits, plus *Calibrate from a measurement* (see below).
 - **Si570 hardware:** I²C address, start-up frequency, register bank (7 or 13), OE
   polarity, frequency limits and reference frequency. Stored on the device; the values in
   `include/config.h` are only the defaults.
@@ -71,9 +81,11 @@ read-only; POST routes need the admin password once one is set.
 | `GET /status` | live state (also pushed on `ws://<host>:81/` every 250 ms) |
 | `GET /config` | settings without secrets; `?download=1` as a backup file |
 | `GET /discover` | identity, ports and endpoints; mDNS service `_si570-siggen._tcp` |
-| `POST /api/freq` | `hz=14250000` |
+| `POST /api/freq` | `hz=14250000`, optional `output=0..3` (0 = Si570, the default; 1–3 = CLK0–CLK2) |
 | `POST /api/step` | `index=0..8` (1 Hz … 100 MHz) |
-| `POST /api/rf` | `on=1\|0` |
+| `POST /api/rf` | `on=1\|0`, optional `output=0..3` |
+| `POST /api/output` | `output=0..3`: select the output the display and encoder work on |
+| `POST /api/drive` | `output=1..3`, `ma=2\|4\|6\|8`: Si5351 drive strength |
 | `POST /api/ref` | `mode=int\|ext` |
 | `POST /api/calibrate`, `/api/save` | calibrate now / save as power-on default |
 | `POST /save/hardware`, `/save/network`, `/save/admin` | settings forms |
@@ -110,7 +122,9 @@ it was on before.
 
 | Command | |
 |---|---|
+| `out 0..3` / `out clk1` | select the output (`f`, `rf` and `drive` act on it) |
 | `f 14250000` / `f 14.25M` / `f 7050k` | set frequency |
+| `drive 2\|4\|6\|8` | Si5351 drive strength (mA) |
 | `step 0..8` | tuning step (1 Hz … 100 MHz) |
 | `rf on\|off`, `ref int\|ext`, `cal`, `save` | as on the page |
 | `status` | status JSON |
@@ -118,6 +132,28 @@ it was on before.
 | `auth clear` | remove the admin password and reboot |
 | `reset` | factory reset (all settings, Wi-Fi, password) and reboot |
 | `reboot` | |
+
+## Si5351 outputs
+
+Connect a Si5351 module (Adafruit or a clone) to the same I²C bus: **SDA → D21, SCL →
+D22, GND**, and power as the module expects (most have their own 3.3 V regulator and take
+`VIN`/5 V or 3V3). Its address is 0x60, so it doesn't clash with the Si570 (0x55) or the
+displays. The firmware finds it at power-up, or within 2 s of it being plugged in.
+Without one, set *Si5351 fitted* to *No* and the extra outputs disappear.
+
+- **Range:** 8 kHz–160 MHz by default (the library goes 4 kHz–225 MHz; the datasheet
+  guarantees 200 MHz). Square-wave outputs; 2/4/6/8 mA drive is roughly +3 to +10 dBm.
+- **Above 100 MHz** an output needs a PLL to itself. CLK0 and CLK1 share PLLA, CLK2 has
+  PLLB: so CLK2 and *one* of CLK0/CLK1 can be above 100 MHz together. The page tells you
+  when a setting is refused for this reason.
+- **Accuracy:** the module's 25 MHz crystal is typically 10–30 ppm off, and the external
+  10 MHz reference only corrects the Si570. Calibrate once: select a CLK output, measure
+  it with a counter you trust (e.g. locked to your GPSDO), and enter the reading under
+  *Si5351 hardware → Calibrate from a measurement*. The page works out the correction
+  (+ = crystal runs fast) and stores it; it applies to all three outputs.
+
+The Si5351 library is **GPL-3.0**: firmware binaries built from this project include it
+and are therefore GPL-3.0 as a whole.
 
 ## How "external 10 MHz reference" works with an Si570
 
@@ -137,7 +173,7 @@ reference can't clock the chip directly. Instead the ESP32 runs a
 
 | Selection | Crystal value used for the maths |
 |---|---|
-| **INT** | Factory calibration read from the Si570 at power-up (datasheet: ±1.5 ppm initial, plus ±7/20/50 ppm over temperature depending on grade) |
+| **INT** | Factory calibration read from the Si570 at power-up (datasheet: ±1.5 ppm initial, plus ±7/20/50 ppm over temperature depending on grade), plus your correction if you set one (see *Correcting the Si570 on the internal reference*) |
 | **EXT** | Measured against the 10 MHz reference, updated every second while the output is ≤ 40 MHz. Above that the ESP32 can't count the output, so the last correction is **held**. The last EXT calibration is saved, so EXT stays accurate even with the reference unplugged. |
 
 **Calibrate now** (on the page, or long press in REF mode with EXT selected): if the
@@ -153,10 +189,10 @@ clones order the pins differently, so go by the printed labels:
 ```
                     antenna
                   EN o     o D23
-                  VP o     o D22  <- Si570 SCL
+                  VP o     o D22  <- SCL: Si570, Si5351, display
                   VN o     o TX0
    10 MHz ref -> D34 o     o RX0
- Si570 sample -> D35 o     o D21  <- Si570 SDA
+ Si570 sample -> D35 o     o D21  <- SDA: Si570, Si5351, display
     encoder A -> D32 o     o D19
     encoder B -> D33 o     o D18
    encoder SW -> D25 o     o D5
@@ -172,8 +208,8 @@ clones order the pins differently, so go by the printed labels:
 
 | Function | ESP32 GPIO | Connect to |
 |---|---|---|
-| I2C SDA | 21 | Si570 SDA, display SDA |
-| I2C SCL | 22 | Si570 SCL, display SCL |
+| I2C SDA | 21 | Si570, Si5351 and display SDA |
+| I2C SCL | 22 | Si570, Si5351 and display SCL |
 | Encoder A / CLK (optional) | 32 | encoder CLK |
 | Encoder B / DT (optional) | 33 | encoder DT |
 | Encoder switch (optional) | 25 | encoder SW (other side to GND) |
@@ -183,7 +219,7 @@ clones order the pins differently, so go by the printed labels:
 | Counter gate | 27 | **nothing**: used internally, leave unconnected |
 | 3V3 | 3V3 | Si570 VDD, OLED VCC, pull-ups |
 
-I2C addresses: Si570 `0x55`, OLED `0x3C`/`0x3D`, LCD backpack `0x27`/`0x3F` (any
+I2C addresses: Si570 `0x55`, Si5351 `0x60`, OLED `0x3C`/`0x3D`, LCD backpack `0x27`/`0x3F` (any
 PCF8574/PCF8574A address works).
 
 The external reference and the Si570 sample input, with part values
@@ -242,6 +278,23 @@ with Skyworks'
 `include/config.h` also holds the pins, encoder steps per detent and direction, display
 type (auto / LCD / OLED, SSD1306 vs SH1106), hostname, gate time and lock threshold.
 
+### Correcting the Si570 on the internal reference
+
+Without the external reference, the Si570 runs on its factory calibration. To trim it:
+
+1. Select the **Internal** reference and set the Si570 to a convenient frequency. Higher
+   is better: a counter with 1 Hz resolution resolves 0.1 ppm at 10 MHz but 0.01 ppm at
+   100 MHz.
+2. Measure it with a counter you trust, ideally one locked to your GPSDO.
+3. Under **Si570 hardware → Calibrate from a measurement**, enter the reading.
+
+The page works out the correction (+ = crystal runs fast) and stores it on the device.
+It applies at every frequency, and you can repeat it: each new reading refines the stored
+value. It is reset if you change the Si570's address, start-up frequency or register
+bank, and the *Correction* field shows the current value, which you can also type in or set
+back to 0. With the external reference selected, the live correction from the reference
+takes over.
+
 ## Build
 
 Requires [PlatformIO](https://platformio.org/) (VS Code extension or CLI).
@@ -254,13 +307,15 @@ pio test -e native             # host unit tests (no hardware needed)
 
 ## Encoder controls (optional)
 
-| Action | TUNE | STEP | REF | RF |
-|---|---|---|---|---|
-| Turn | frequency ± step | change step (1 Hz – 100 MHz) | CW = EXT, CCW = INT | CW = on, CCW = off |
-| Short press | next mode | next mode | next mode | next mode |
-| Long press (0.8 s) | save as power-on defaults | save | EXT: **calibrate now**; INT: save | save |
+| Action | TUNE | STEP | OUT | REF | RF |
+|---|---|---|---|---|---|
+| Turn | frequency ± step | change step (1 Hz – 100 MHz) | select output (Si570, CLK0–2) | CW = EXT, CCW = INT | CW = on, CCW = off |
+| Short press | next mode | next mode | next mode | next mode | next mode |
+| Long press (0.8 s) | save as power-on defaults | save | save | EXT: **calibrate now**; INT: save | save |
 
-- REF only appears when the reference counter is configured, RF only when OE is wired.
+- TUNE, STEP and RF act on the selected output.
+- OUT only appears with the Si5351 fitted; REF only on the Si570 when the reference
+  counter is configured; RF on the Si570 only when OE is wired.
 - The display returns to TUNE after 10 s without input.
 - **Hold the encoder switch while powering up** to restore the generator defaults
   (frequency, step, reference, RF). Wi-Fi, password and hardware settings are kept.
@@ -272,12 +327,15 @@ pio test -e native             # host unit tests (no hardware needed)
 16x2 LCD:
 
 ```
-  14.250 000 MHz     <- cursor under the digit being tuned (blinks in STEP mode)
-TUNE 1kHz     INT    <- mode, step, reference status
+  14.250 000 MHz     <- Si570 only: cursor under the digit being tuned (blinks in STEP mode)
+CK1   7.074 000      <- with the Si5351: output tag (570, CK0, CK1, CK2), then the frequency
+TUNE 1kHz     INT    <- mode, step, reference status (Si570) or ON/OFF (Si5351)
+OUT  <CK1> 8mA       <- OUT mode: the output being selected and its drive
 ```
 
-OLED: reference status on top, large frequency with the tuned digit underlined (boxed in
-STEP mode), step, and a mode bar with the current mode highlighted. Wi-Fi events (IP
+OLED: reference status (or the Si5351 output and drive) on top, large frequency with the
+tuned digit underlined (boxed in STEP mode), step, and a bottom line with the current mode
+highlighted next to the selected output and its RF state. Wi-Fi events (IP
 address, hotspot name, OTA progress) show on the bottom line for a few seconds.
 
 Reference status: `INT` internal · `LOCK` within 0.5 ppm of the reference · `TRK`
@@ -296,6 +354,7 @@ src/controller.*      the one place that changes the generator (encoder, web, co
 src/web_portal.*      HTTP routes, JSON API, WebSocket feed, firmware upload
 src/net.*             Wi-Fi station / set-up hotspot, mDNS, ArduinoOTA
 src/settings.*        NVS storage: state, hardware, network, admin password
+src/clockgen.*        the Si5351 (CLK0-CLK2) through Etherkit's Si5351Arduino (GPL-3.0)
 src/                  also: Si570 wrapper, pulse counter, reference loop, displays, encoder
 test/                 host tests, with a simulated Si570 that enforces the datasheet rules
 tools/build_stamp.py  writes the build time shown in /status and the boot banner
@@ -313,3 +372,5 @@ feed on port 81, and the `min_spiffs` partition table.
 - Craig Johnson AA0ZZ, "Programmable PLL (Si570) Local Oscillator", QEX Jul/Aug 2011
   (also presented at the ARRL/TAPR DCC 2012)
 - KO7M Si570 driver: https://github.com/ko7m/Si570
+- Etherkit Si5351Arduino: https://github.com/etherkit/Si5351Arduino
+- Skyworks (Silicon Labs) AN619, "Manually Generating an Si5351 Register Map"
